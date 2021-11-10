@@ -54,8 +54,8 @@ void serverThreadFunction(TCPServer* server, ReceivedSocketData && data)
 			std::cout << "[" << socketIndex << "] Bytes received: " << data.request.size() << std::endl;
 			std::cout << "[" << socketIndex << "] Data received: " << data.request << std::endl;
 
-			data.reply = data.request;
-			std::reverse(data.reply.begin(), data.reply.end());
+			//data.reply = data.request;
+			//std::reverse(data.reply.begin(), data.reply.end());
 
 			server->sendReply(data);
 		}

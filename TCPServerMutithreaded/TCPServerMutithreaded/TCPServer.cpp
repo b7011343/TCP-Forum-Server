@@ -151,6 +151,7 @@ void TCPServer::receiveData(ReceivedSocketData &ret, bool blocking)
 		{
 			recvbuf[iResult] = '\0';
 			ret.request = std::string(recvbuf);
+			ret.reply = parseRequest(ret.request);
 		}
 		//	else if (iResult == 0)
 		//	{
