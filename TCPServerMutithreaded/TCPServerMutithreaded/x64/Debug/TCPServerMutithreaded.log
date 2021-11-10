@@ -1,0 +1,12 @@
+﻿  Storage.cpp
+D:\One Drive\OneDrive - Sheffield Hallam University\University Drive\Computer Science BSc\Modules\Year 3\Concurrent and Parallel Programming\Libraries v4.0\TCPServerMutithreaded\TCPServerMutithreaded\Storage.cpp(12,46): warning C4267: 'return': conversion from 'size_t' to 'int', possible loss of data
+D:\One Drive\OneDrive - Sheffield Hallam University\University Drive\Computer Science BSc\Modules\Year 3\Concurrent and Parallel Programming\Libraries v4.0\TCPServerMutithreaded\TCPServerMutithreaded\Storage.cpp(41,60): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+D:\One Drive\OneDrive - Sheffield Hallam University\University Drive\Computer Science BSc\Modules\Year 3\Concurrent and Parallel Programming\Libraries v4.0\TCPServerMutithreaded\TCPServerMutithreaded\Storage.cpp(56,70): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+FileTracker : error FTK1011: could not create the new file tracking log file: D:\One Drive\OneDrive - Sheffield Hallam University\University Drive\Computer Science BSc\Modules\Year 3\Concurrent and Parallel Programming\Libraries v4.0\TCPServerMutithreaded\TCPServerMutithreaded\x64\Debug\TCPServe.9EB9611D.tlog\link.19128-cvtres.read.1.tlog. The system cannot find the path specified.
+  
+  
+  
+FileTracker : error FTK1011: could not create the new file tracking log file: D:\One Drive\OneDrive - Sheffield Hallam University\University Drive\Computer Science BSc\Modules\Year 3\Concurrent and Parallel Programming\Libraries v4.0\TCPServerMutithreaded\TCPServerMutithreaded\x64\Debug\TCPServe.9EB9611D.tlog\link.19128-cvtres.write.1.tlog. The system cannot find the path specified.
+  
+  
+  
