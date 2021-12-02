@@ -112,9 +112,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="RequestGenerator.cpp" />
+    <ClCompile Include="ResponseVerifier.cpp" />
+    <ClCompile Include="Storage.cpp" />
     <ClCompile Include="TCPClient.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="RequestGenerator.h" />
+    <ClInclude Include="ResponseVerifier.h" />
+    <ClInclude Include="Storage.h" />
     <ClInclude Include="TCPClient.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
