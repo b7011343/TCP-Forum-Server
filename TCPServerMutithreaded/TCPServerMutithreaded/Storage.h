@@ -2,6 +2,7 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <shared_mutex>
 
 using namespace std;
 
@@ -15,6 +16,7 @@ public:
 	int countRequest(string topicId);
 	string listRequest();
 	vector<string> topicIds();
+	shared_mutex lock;
 
 private:
 	map<string, vector<string>> topicToMessages;

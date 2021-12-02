@@ -9,14 +9,22 @@ Storage::~Storage() {}
 
 int Storage::countRequest(string topicId)
 {
-	return this->topicToMessages[topicId].size();
+	lock.lock_shared();
+	int count = this->topicToMessages[topicId].size();
+	lock.unlock_shared();
+	return count;
 }
 
-string Storage::listRequest() // check what return value should be if there are 0 topics
+string Storage::listRequest()
 {
 	string list = "";
-	for (auto topicId : topicIds()) {
-		list += "@" + topicId + "#";
+	vector<string> topicIdVec = topicIds();
+	if (topicIdVec.size() < 1)
+	{
+		return list;
+	}
+	for (auto topicId : topicIdVec) {
+		list += topicId + "#";
 	}
 	list.pop_back();
 	return list;
@@ -24,35 +32,42 @@ string Storage::listRequest() // check what return value should be if there are 
 
 string Storage::readRequest(string topicId, int messageId)
 {
-	string topicIdTrunc = truncate(topicId);
-	bool isValid = this->topicToMessages.find(topicIdTrunc) == this->topicToMessages.end() && this->topicToMessages[topicIdTrunc].size() >= messageId;
+	string topicIdTrunc = truncate(topicId, 140);
+	lock.lock_shared();
+	bool isValid = this->topicToMessages.count(topicIdTrunc) && this->topicToMessages[topicIdTrunc].size() > messageId;
 	if (!isValid)
 	{
+		lock.unlock_shared();
 		return "";
 	}
-
-	return this->topicToMessages[topicIdTrunc][messageId];
+	string message = this->topicToMessages[topicIdTrunc][messageId];
+	lock.unlock_shared();
+	return message;
 }
 
 int Storage::postRequest(string topicId, string message)
 {
-	string messageTrunc = truncate(message);
-	string topicIdTrunc = truncate(topicId);
-	int messageId = this->topicToMessages[topicIdTrunc].size();
+	string messageTrunc = truncate(message, 140);
+	string topicIdTrunc = truncate(topicId, 140);
+	unsigned int messageId = this->topicToMessages[topicIdTrunc].size();
+	lock.lock();
 	this->topicToMessages[topicIdTrunc].push_back(messageTrunc);
+	lock.unlock();
 	return messageId;
 }
 
 vector<string> Storage::topicIds() {
 	std::vector<std::string> keys;
+	lock.lock_shared();
 	for (auto topic : this->topicToMessages) {
 		keys.push_back(topic.first);
 	}
+	lock.unlock_shared();
 	return keys;
 }
 
 string Storage::truncate(string text, int length)
 {
-	int adjustedLength = text.length() > length ? length : text.length();
+	unsigned int adjustedLength = text.length() > length ? length : text.length();
 	return text.substr(0, adjustedLength);
 }

@@ -1,6 +1,5 @@
-﻿  TCPServer.cpp
-  main.cpp
-  Generating Code...
-D:\Software Projects\Repos\TCP-Forum-Server\TCPServerMutithreaded\TCPServerMutithreaded\main.cpp(47,27): warning C4244: 'initializing': conversion from 'SOCKET' to 'unsigned int', possible loss of data
-D:\Software Projects\Repos\TCP-Forum-Server\TCPServerMutithreaded\TCPServerMutithreaded\TCPServer.cpp(279): warning C4715: 'TCPServer::parseRequest': not all control paths return a value
+﻿  Storage.cpp
+D:\Software Projects\Repos\TCP-Forum-Server\TCPServerMutithreaded\TCPServerMutithreaded\Storage.cpp(13,51): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data
+D:\Software Projects\Repos\TCP-Forum-Server\TCPServerMutithreaded\TCPServerMutithreaded\Storage.cpp(52,69): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data
+D:\Software Projects\Repos\TCP-Forum-Server\TCPServerMutithreaded\TCPServerMutithreaded\Storage.cpp(71,79): warning C4267: 'initializing': conversion from 'size_t' to 'unsigned int', possible loss of data
   TCPServerMutithreaded.vcxproj -> D:\Software Projects\Repos\TCP-Forum-Server\TCPServerMutithreaded\x64\Debug\TCPServerMutithreaded.exe

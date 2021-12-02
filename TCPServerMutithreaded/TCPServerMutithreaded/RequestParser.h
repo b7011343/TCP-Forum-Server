@@ -1,7 +1,7 @@
+#include <string>
+
 #ifndef __REQUESTPARSER_H
 #define __REQUESTPARSER_H
-
-#include <string>
 
 class PostRequest
 {

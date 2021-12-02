@@ -152,7 +152,7 @@ ExitRequest::~ExitRequest()
 
 ExitRequest ExitRequest::parse(std::string request)
 {
-	std::regex exitRegex("^EXIT$");
+	std::regex exitRegex("^EXIT$", "i");
 	std::smatch exitMatch;
 	ExitRequest exitReq;
 

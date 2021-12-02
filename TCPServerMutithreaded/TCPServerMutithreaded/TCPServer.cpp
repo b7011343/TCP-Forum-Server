@@ -1,11 +1,7 @@
-//#include "stdafx.h"
-
-#include <iostream>
-
 #undef UNICODE
-
 #define WIN32_LEAN_AND_MEAN
 
+#include <iostream>
 #include <windows.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -62,7 +58,6 @@ void TCPServer::OpenListenSocket()
 
 	// Resolve the server address and port
 	iResult = getaddrinfo(NULL, portString.c_str(), &hints, &result);
-	//iResult = getaddrinfo("127.0.0.1", portString.c_str(), &hints, &result);
 	if (iResult != 0)
 	{
 		printf("getaddrinfo failed with error: %d\n", iResult);
@@ -153,12 +148,6 @@ void TCPServer::receiveData(ReceivedSocketData &ret, bool blocking)
 			ret.request = std::string(recvbuf);
 			ret.reply = parseRequest(ret.request);
 		}
-		//	else if (iResult == 0)
-		//	{
-		//		recvbuf[iResult] = '\0';
-		//		printf("Received empty string. Terminating server.\n");
-		//		ret.request = "";
-		//	}
 		else if (iResult < 0)
 		{
 			int SocketError = WSAGetLastError();
@@ -271,9 +260,11 @@ string TCPServer::parseRequest(string request)
 	if (exitReq.valid)
 	{
 		std::cout << "Exit request: " << exitReq.toString() << std::endl;
-		return NULL;
+		TCPServer::~TCPServer();
+		return "TERMINATING";
 	}
 
 	std::cout << "Unknown request: " << request << std::endl;
 	std::cout << std::endl;
+	return "Unknown request!";
 }
