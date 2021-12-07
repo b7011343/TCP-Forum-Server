@@ -22,7 +22,7 @@ int main()
 
 	std::vector<std::thread> serverThreads;
 
-	std::cout << "Starting server. Send \"exit\" (without quotes) to terminate." << std::endl;
+	std::cout << "Starting server. Send \"EXIT\" (without quotes) to terminate." << std::endl;
 
 	while (!terminateServer)
 	{
@@ -49,17 +49,17 @@ void serverThreadFunction(TCPServer* server, ReceivedSocketData && data)
 	do {
 		server->receiveData(data, 0);
 
-		if (data.request != "" && data.request != "exit")
+		if (data.request != "" && data.request != "EXIT")
 		{
-			std::cout << "[" << socketIndex << "] Bytes received: " << data.request.size() << std::endl;
-			std::cout << "[" << socketIndex << "] Data received: " << data.request << std::endl;
+			//std::cout << "[" << socketIndex << "] Bytes received: " << data.request.size() << std::endl;
+			//std::cout << "[" << socketIndex << "] Data received: " << data.request << std::endl;
 
 			//data.reply = data.request;
 			//std::reverse(data.reply.begin(), data.reply.end());
 
 			server->sendReply(data);
 		}
-		else if (data.request == "exit")
+		else if (data.request == "EXIT")
 		{
 			std::cout << "[" << socketIndex << "] Data received: " << data.request << std::endl;
 			std::cout << "[" << socketIndex << "] Exiting... Bye bye!" << std::endl;
@@ -67,9 +67,9 @@ void serverThreadFunction(TCPServer* server, ReceivedSocketData && data)
 			data.reply = data.request;
 			server->sendReply(data);
 		}
-	} while (data.request != "exit" && !terminateServer);
+	} while (data.request != "EXIT" && !terminateServer);
 
-	if (!terminateServer && data.request == "exit")
+	if (!terminateServer && data.request == "EXIT")
 	{
 		terminateServer = true;
 

@@ -226,40 +226,40 @@ string TCPServer::parseRequest(string request)
 	PostRequest post = PostRequest::parse(request);
 	if (post.valid)
 	{
-		std::cout << "Post request: " << post.toString() << std::endl;
-		std::cout << "Post topic: " << post.getTopicId() << std::endl;
-		std::cout << "Post message: " << post.getMessage() << std::endl;
+		//std::cout << "Post request: " << post.toString() << std::endl;
+		//std::cout << "Post topic: " << post.getTopicId() << std::endl;
+		//std::cout << "Post message: " << post.getMessage() << std::endl;
 		return to_string(db.postRequest(post.getTopicId(), post.getMessage()));
 	}
 
 	ReadRequest read = ReadRequest::parse(request);
 	if (read.valid)
 	{
-		std::cout << "Read request" << read.toString() << std::endl;
-		std::cout << "Read topic: " << read.getTopicId() << std::endl;
-		std::cout << "Read post id: " << read.getPostId() << std::endl;
+		//std::cout << "Read request" << read.toString() << std::endl;
+		//std::cout << "Read topic: " << read.getTopicId() << std::endl;
+		//std::cout << "Read post id: " << read.getPostId() << std::endl;
 		return db.readRequest(read.getTopicId(), read.getPostId());
 	}
 
 	CountRequest count = CountRequest::parse(request);
 	if (count.valid)
 	{
-		std::cout << "Count request: " << count.toString() << std::endl;
-		std::cout << "Count topic: " << count.getTopicId() << std::endl;
+		//std::cout << "Count request: " << count.toString() << std::endl;
+		//std::cout << "Count topic: " << count.getTopicId() << std::endl;
 		return to_string(db.countRequest(count.getTopicId()));
 	}
 
 	ListRequest list = ListRequest::parse(request);
 	if (list.valid)
 	{
-		std::cout << "List request: " << list.toString() << std::endl;
+		//std::cout << "List request: " << list.toString() << std::endl;
 		return db.listRequest();
 	}
 
 	ExitRequest exitReq = ExitRequest::parse(request);
 	if (exitReq.valid)
 	{
-		std::cout << "Exit request: " << exitReq.toString() << std::endl;
+		//std::cout << "Exit request: " << exitReq.toString() << std::endl;
 		TCPServer::~TCPServer();
 		return "TERMINATING";
 	}

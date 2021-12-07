@@ -122,6 +122,7 @@
     <ClInclude Include="ResponseVerifier.h" />
     <ClInclude Include="Storage.h" />
     <ClInclude Include="TCPClient.h" />
+    <ClInclude Include="ThreadPool.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

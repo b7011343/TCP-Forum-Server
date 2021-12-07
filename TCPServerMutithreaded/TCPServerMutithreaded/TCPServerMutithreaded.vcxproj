@@ -123,6 +123,7 @@
     <ClInclude Include="Storage.h" />
     <ClInclude Include="TCPClient.h" />
     <ClInclude Include="TCPServer.h" />
+    <ClInclude Include="Threadpool.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

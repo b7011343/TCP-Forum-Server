@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "TCPClient.h"
+#include "ThreadPool.h"
 
 #define DEFAULT_PORT 12345
 
@@ -14,6 +15,9 @@ int main(int argc, char **argv)
 
 	TCPClient client(argv[1], DEFAULT_PORT);
 	std::string request;
+
+	ThreadPool readerPool(2);
+	ThreadPool writerPool(1);
 
 	client.OpenConnection();
 

@@ -66,7 +66,7 @@ vector<string> Storage::topicIds() {
 	return keys;
 }
 
-string Storage::truncate(string text, int length)
+inline string Storage::truncate(string text, int length)
 {
 	unsigned int adjustedLength = text.length() > length ? length : text.length();
 	return text.substr(0, adjustedLength);
