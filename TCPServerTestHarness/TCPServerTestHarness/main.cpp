@@ -15,7 +15,7 @@ int main(int argc, char **argv)
 	// Validate the parameters
 	if (argc != 6) {
 		//printf("\nUsage: %s server_name\nserver_IP number_of_poster_threads number_of_reader_threads time_duration throttle(0|1)\n\n", argv[0]);
-		std::cout << "\nUsage: server_IP number_of_poster_threads number_of_reader_threads time_duration throttle(0|1)\n\n";
+		std::cout << "\nUsage (required parameters): server_IP number_of_poster_threads number_of_reader_threads time_duration throttle(0|1)\n\n";
 		std::cout << "server_IP - IP of the server\n";
 		std::cout << "number_of_poster_threads - number of threads performing POST operations\n";
 		std::cout << "number_of_reader_threads - number of threads performing READ operations\n";
@@ -33,16 +33,17 @@ int main(int argc, char **argv)
 	ThreadPool posterPool(posterCount);
 	ThreadPool readerPool(readerCount);
 
-	Storage db();
-	RequestGenerator requestGenerator();
-	ResponseVerifier responseVerifier();
+	Storage* db = new Storage();
+	ResponseVerifier* responseVerifier = new ResponseVerifier();
+	RequestGenerator* requestGenerator = new RequestGenerator(throttle);
 
 	TCPClient client(argv[1], DEFAULT_PORT);
 	client.OpenConnection();
 	std::string request;
 
 	do {
-
+		request = requestGenerator->generateWriteRequest();
+		
 	} while ();
 
 	/*
@@ -62,6 +63,10 @@ int main(int argc, char **argv)
 	*/
 
 	client.CloseConnection();
+
+	delete db;
+	delete responseVerifier;
+	delete requestGenerator;
 
 	return 0;
 }
