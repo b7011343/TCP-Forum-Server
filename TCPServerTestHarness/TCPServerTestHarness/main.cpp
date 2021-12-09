@@ -1,6 +1,8 @@
 #include <iostream>
 #include <ctime>
 #include <chrono>
+#include <thread>
+#include <future>
 
 #include "TCPClient.h"
 #include "ThreadPool.h"
@@ -9,6 +11,13 @@
 #include "Storage.h"
 
 #define DEFAULT_PORT 12345
+
+void readRequest();
+void postRequest();
+
+
+unsigned int readRequests = 0;
+unsigned int postRequests = 0;
 
 int main(int argc, char **argv)
 {
@@ -25,26 +34,44 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+	Storage* db = new Storage();
+	ResponseVerifier* responseVerifier = new ResponseVerifier();
+	RequestGenerator* requestGenerator = new RequestGenerator();
+
 	unsigned int posterCount = (int)argv[2];
 	unsigned int readerCount = (int)argv[3];
-	unsigned int timeDurationSecs = (int)argv[4];
+	double timeDurationSecs = (int)argv[4];
 	bool throttle = (int)argv[5];
 
 	ThreadPool posterPool(posterCount);
 	ThreadPool readerPool(readerCount);
 
-	Storage* db = new Storage();
-	ResponseVerifier* responseVerifier = new ResponseVerifier();
-	RequestGenerator* requestGenerator = new RequestGenerator(throttle);
-
 	TCPClient client(argv[1], DEFAULT_PORT);
 	client.OpenConnection();
-	std::string request;
+	//std::string request;
+
+	chrono::high_resolution_clock::time_point endTime;
+	chrono::high_resolution_clock::time_point startTime = chrono::high_resolution_clock::now();
 
 	do {
-		request = requestGenerator->generateWriteRequest();
-		
-	} while ();
+		// Write requests
+		if (!throttle || (throttle && postRequests < 1000))
+		{
+			std::string postReq = requestGenerator->generateWriteRequest();
+			posterPool.enqueue(postRequest);
+		}
+
+		// Read requests
+		if (!throttle || (throttle && readRequests < 1000))
+		{
+			readerPool.enqueue(readRequest);
+		}
+
+		endTime = chrono::high_resolution_clock::now();
+	} while (chrono::duration_cast<chrono::duration<double>>(endTime - startTime).count() < timeDurationSecs);
+
+	readerPool.~ThreadPool();
+	posterPool.~ThreadPool();
 
 	/*
 	do {
@@ -56,6 +83,7 @@ int main(int argc, char **argv)
 		std::cout << "Bytes sent: " << request.size() << std::endl;
 
 		std::string reply = client.send(request);
+		std::future<string> ret = std::async(client.send, request);
 
 		std::cout << "String returned: " << reply << std::endl;
 		std::cout << "Bytes received: " << reply.size() << std::endl;
@@ -69,4 +97,14 @@ int main(int argc, char **argv)
 	delete requestGenerator;
 
 	return 0;
+}
+
+void postRequest()
+{
+	//std::string request = requestGenerator->generateWriteRequest();
+}
+
+void readRequest()
+{
+
 }

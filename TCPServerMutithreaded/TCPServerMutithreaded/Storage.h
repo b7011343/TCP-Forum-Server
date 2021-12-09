@@ -3,6 +3,7 @@
 #include <map>
 #include <vector>
 #include <shared_mutex>
+//#include "Threadpool.h"
 
 using namespace std;
 
@@ -19,7 +20,8 @@ public:
 private:
 	shared_mutex lock;
 	map<string, vector<string>> topicToMessages;
-
+	
+	//ThreadPool* pool;
 	vector<string> topicIds();
 	static string truncate(string text, int length);
 };

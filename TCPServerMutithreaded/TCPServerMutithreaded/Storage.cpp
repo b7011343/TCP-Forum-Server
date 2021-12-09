@@ -3,7 +3,10 @@
 
 using namespace std;
 
-Storage::Storage() {}
+Storage::Storage()
+{
+	//this->pool = new ThreadPool(3);
+}
 
 Storage::~Storage() {}
 

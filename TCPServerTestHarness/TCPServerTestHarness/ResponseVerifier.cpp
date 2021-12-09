@@ -12,10 +12,10 @@ ResponseVerifier::~ResponseVerifier()
 
 bool ResponseVerifier::verifyPost(string request, string response)
 {
-
+	return false;
 }
 
 bool ResponseVerifier::verifyRead(string request, string response)
 {
-
+	return false;
 }

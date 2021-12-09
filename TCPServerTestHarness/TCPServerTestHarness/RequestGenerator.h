@@ -1,13 +1,14 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <tuple>
 
 using namespace std;
 
 class RequestGenerator
 {
 public:
-	RequestGenerator(bool isThrottled);
+	RequestGenerator();
 	~RequestGenerator();
 	string generateWriteRequest();
 	string generateReadRequest();
@@ -15,4 +16,6 @@ public:
 private:
 	vector<string> writeRequests;
 	vector<string> readRequests;
+	int writeIndex;
+	int readIndex;
 };
