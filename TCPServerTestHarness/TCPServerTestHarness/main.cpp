@@ -5,6 +5,8 @@
 #include <future>
 #include <queue>
 #include <mutex>
+#include <tuple>
+#include <map>
 
 #include "TCPClient.h"
 #include "ThreadPool.h"
@@ -14,13 +16,14 @@
 
 #define DEFAULT_PORT 12345
 
-double readRequest(TCPClient client, int threadIndex, double timeDurationSecs);
-double postRequest(TCPClient client, int threadIndex, double timeDurationSecs, mutex* lock);
-string sendViaClient(TCPClient client, string request);
+double readRequest(string serverIp, int threadIndex, double timeDurationSecs);
+void postRequest(string serverIp, int threadIndex, double timeDurationSecs);
 
 unsigned int readRequests = 0;
 unsigned int postRequests = 0;
 
+mutex mLock;
+map<int, tuple<double, int>> threadMap;
 Storage* db = new Storage();
 ResponseVerifier* responseVerifier = new ResponseVerifier();
 RequestGenerator* requestGenerator = new RequestGenerator();
@@ -53,7 +56,6 @@ int main(int argc, char **argv)
 
 		std::cout << "Enter dev mode using default paramaters?\n";
 		system("pause");
-		
 	}
 	else
 	{
@@ -64,49 +66,35 @@ int main(int argc, char **argv)
 		throttle = (int)argv[5];
 	}
 
-
-
-	//std::queue<future<bool>> posterVerificationQueue;
-	//std::queue<bool> readerVerificationQueue;
+	cout << "\nStarting throughput test...\n";
 
 	ThreadPool posterPool(posterCount);
-	//ThreadPool readerPool(readerCount);
-
-	//vector<thread> posterThreads;
-	//vector<thread> readerThreads;
-	vector<future<double>> posterDurationFutures;
-	mutex lock;
-	TCPClient client(serverIp, DEFAULT_PORT);
-	client.OpenConnection();
-
-	chrono::high_resolution_clock::time_point endTime;
-	chrono::high_resolution_clock::time_point startTime = chrono::high_resolution_clock::now();
+	vector<future<void>> posterDurationFutures;
 
 	for (int i = 0; i < posterCount; i++)
 	{
-		//posterThreads.emplace_back(postRequest, client, i, timeDurationSecs);
-		//std::future<double> durationFut = std::async(std::launch::async, postRequest, client, i, timeDurationSecs);
-		//posterDurationFutures.push_back(async(launch::async, postRequest, client, i, timeDurationSecs));
-		posterDurationFutures.push_back(posterPool.enqueue(postRequest, client, i, timeDurationSecs, &lock));
+		posterDurationFutures.push_back(posterPool.enqueue(postRequest, serverIp, i, timeDurationSecs));
 	}
 
-	double posterTotal = 0;
+	double posterTotalTime = 0;
 	for (int i = 0; i < posterDurationFutures.size(); i++)
 	{
-		bool valid = posterDurationFutures[i].valid();
-		//posterDurationFutures[i].wait();
-		posterTotal += posterDurationFutures[i].get();
+		posterDurationFutures[i].wait();
 	}
 
-	cout << posterTotal;
-	
+	for (int i = 0; i < threadMap.size(); i++)
+	{
+		double posterRequestsPerSecond = get<1>(threadMap[i]);
+		posterTotalTime += get<0>(threadMap[i]);
+		std::cout << "\nPoster thread " << i << " - Average post requests per second: " << posterRequestsPerSecond << "\n";
+	}
+
+	cout << "\nTotal runtime: " << posterTotalTime << "s" << "\n";
+	cout << "\nAverage post requests per second per thread: " << postRequests / posterTotalTime << "\n";
+
 	for (int i = 0; i < readerCount; i++)
 	{
-		//readerThreads.emplace_back();
 	}
-
-
-	client.CloseConnection();
 
 	delete db;
 	delete responseVerifier;
@@ -116,15 +104,13 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-inline string sendViaClient(TCPClient client, string request)
+void postRequest(string serverIp, int threadIndex, double timeDurationSecs)
 {
-	return client.send(request);
-}
+	TCPClient client(serverIp, DEFAULT_PORT);
+	client.OpenConnection();
 
-double postRequest(TCPClient client, int threadIndex, double timeDurationSecs, mutex* lock)
-{
 	int threadPostCount = 0;
-
+	double timeSpan;
 	chrono::high_resolution_clock::time_point endTime;
 	chrono::high_resolution_clock::time_point startTime = chrono::high_resolution_clock::now();
 
@@ -132,21 +118,23 @@ double postRequest(TCPClient client, int threadIndex, double timeDurationSecs, m
 	{
 		string request = requestGenerator->generateWriteRequest();
 		string response = client.send(request);
-		bool isValidResponse = db->addPosterValue(request, response);
+		//bool isValidResponse = db->addPosterValue(request, response);
 
 		endTime = chrono::high_resolution_clock::now();
+		timeSpan = chrono::duration_cast<chrono::duration<double>>(endTime - startTime).count();
 		threadPostCount++;
-		lock->lock();
-		postRequests++;
-		lock->unlock();
-	} while (chrono::duration_cast<chrono::duration<double>>(endTime - startTime).count() < timeDurationSecs);
+	} while (timeSpan < timeDurationSecs);
 
+	client.CloseConnection();
+	
 	double totalRunTime = (endTime - startTime).count();
-	double posterRequestsPerSecond = threadPostCount / totalRunTime;
+	double posterRequestsPerSecond = threadPostCount / timeSpan;
 
-	std::cout << "Thread: " << threadIndex << endl;
-	std::cout << "Average post requests per second: " << posterRequestsPerSecond << endl;
-	return totalRunTime;
+	tuple<double, double> returnValues = make_tuple(timeSpan, posterRequestsPerSecond);
+	mLock.lock();
+	postRequests += threadPostCount;
+	threadMap[threadIndex] = returnValues;
+	mLock.unlock();
 }
 
 double readRequest(TCPClient client, int threadIndex, double timeDurationSecs)

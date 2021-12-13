@@ -16,7 +16,8 @@ string RequestGenerator::generateWriteRequest()
 	lock.lock();
 	writeIndex++;
 	lock.unlock();
-	return writeRequests[i];
+	string request = writeRequests[i];
+	return request;
 }
 
 string RequestGenerator::generateReadRequest()
