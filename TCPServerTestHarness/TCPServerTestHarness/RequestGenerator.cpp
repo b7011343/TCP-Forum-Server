@@ -10,14 +10,16 @@ RequestGenerator::RequestGenerator()
 
 RequestGenerator::~RequestGenerator() {}
 
-inline string RequestGenerator::generateWriteRequest()
+string RequestGenerator::generateWriteRequest()
 {
 	unsigned int i = writeIndex % writeRequests.size();
+	lock.lock();
 	writeIndex++;
+	lock.unlock();
 	return writeRequests[i];
 }
 
-inline string RequestGenerator::generateReadRequest()
+string RequestGenerator::generateReadRequest()
 {
 	unsigned int i = readIndex % readRequests.size();
 	readIndex++;

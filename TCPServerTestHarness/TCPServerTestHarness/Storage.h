@@ -3,6 +3,10 @@
 #include <future>
 #include <string>
 #include <vector>
+#include <shared_mutex>
+
+#include "ResponseVerifier.h"
+#include "RequestParser.h"
 
 using namespace std;
 
@@ -11,12 +15,14 @@ class Storage
 public:
 	Storage();
 	~Storage();
-	void addReaderValue(string request, future<string> responseFuture);
-	void addWriterValue(string request, future<string> responseFuture);
+	bool addReaderValue(string request, string response);
+	bool addPosterValue(string request, string response);
 	string getReaderResponse(string request);
-	string getWriterResponse(string request);
+	string getPosterResponse(string request);
 
 private:
-	map<string, future<string>> readerRequestResponseMap;
-	map<string, future<string>> writerRequestResponseMap;
+	map<string, string> readerRequestResponseMap;
+	map<string, vector<string>> posterRequestResponseMap;
+	ResponseVerifier* verifier;
+	shared_mutex lock;
 };

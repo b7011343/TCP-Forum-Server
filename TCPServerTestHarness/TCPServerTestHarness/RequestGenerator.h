@@ -1,7 +1,11 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <future>
 #include <tuple>
+#include <mutex>
+
+#include "TCPClient.h"
 
 using namespace std;
 
@@ -18,4 +22,5 @@ private:
 	vector<string> readRequests;
 	int writeIndex;
 	int readIndex;
+	mutex lock;
 };
