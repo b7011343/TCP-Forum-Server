@@ -16,7 +16,7 @@ public:
 	Storage();
 	~Storage();
 	bool addReaderValue(string request, string response);
-	bool addPosterValue(string request, string response);
+	tuple<bool, int, int> addPosterValue(string request, string response);
 	string getReaderResponse(string request);
 	string getPosterResponse(string request);
 

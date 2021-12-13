@@ -23,9 +23,10 @@ unsigned int readRequests = 0;
 unsigned int postRequests = 0;
 
 mutex mLock;
-map<int, tuple<double, int>> threadMap;
+map<int, tuple<double, int>> posterThreadMap;
+map<int, vector<future<tuple<bool, int, int>>>> posterThreadErrorResponses;
+map<int, tuple<double, int>> readerThreadMap;
 Storage* db = new Storage();
-ResponseVerifier* responseVerifier = new ResponseVerifier();
 RequestGenerator* requestGenerator = new RequestGenerator();
 
 int main(int argc, char **argv)
@@ -69,39 +70,45 @@ int main(int argc, char **argv)
 	cout << "\nStarting throughput test...\n";
 
 	ThreadPool posterPool(posterCount);
-	vector<future<void>> posterDurationFutures;
+	vector<future<void>> posterFutures;
+	double posterTotalTime = 0.0;
+
+	ThreadPool readerPool(readerCount);
+	vector<future<void>> readerFutures;
+	double readerTotalTime = 0.0;
 
 	for (int i = 0; i < posterCount; i++)
-	{
-		posterDurationFutures.push_back(posterPool.enqueue(postRequest, serverIp, i, timeDurationSecs));
-	}
+		posterFutures.push_back(posterPool.enqueue(postRequest, serverIp, i, timeDurationSecs));
 
-	double posterTotalTime = 0;
-	for (int i = 0; i < posterDurationFutures.size(); i++)
-	{
-		posterDurationFutures[i].wait();
-	}
+	for (int i = 0; i < posterFutures.size(); i++)
+		posterFutures[i].wait();
 
-	for (int i = 0; i < threadMap.size(); i++)
+	for (int i = 0; i < posterThreadMap.size(); i++)
 	{
-		double posterRequestsPerSecond = get<1>(threadMap[i]);
-		posterTotalTime += get<0>(threadMap[i]);
-		std::cout << "\nPoster thread " << i << " - Average post requests per second: " << posterRequestsPerSecond << "\n";
+		double posterRequestsPerSecond = get<1>(posterThreadMap[i]);
+		double threadRunTime = get<0>(posterThreadMap[i]);
+		posterTotalTime += threadRunTime;
+		std::cout << "\nPoster thread " << i << " (ran for " << threadRunTime << "s) - Average post requests per second: " << posterRequestsPerSecond << "\n";
 	}
 
 	cout << "\nTotal runtime: " << posterTotalTime << "s" << "\n";
-	cout << "\nAverage post requests per second per thread: " << postRequests / posterTotalTime << "\n";
+	cout << "\nTotal post requests: " << postRequests << "\n";
+	cout << "\nAverage post requests per second per thread: " << postRequests / posterTotalTime << "\n\n";
 
 	for (int i = 0; i < readerCount; i++)
 	{
 	}
 
 	delete db;
-	delete responseVerifier;
 	delete requestGenerator;
 
 	system("pause");
 	return 0;
+}
+
+tuple<bool, int, int> validateAndStore(string request, string response)
+{
+	return db->addPosterValue(request, response);
 }
 
 void postRequest(string serverIp, int threadIndex, double timeDurationSecs)
@@ -113,19 +120,23 @@ void postRequest(string serverIp, int threadIndex, double timeDurationSecs)
 	double timeSpan;
 	chrono::high_resolution_clock::time_point endTime;
 	chrono::high_resolution_clock::time_point startTime = chrono::high_resolution_clock::now();
+	
+	vector<future<tuple<bool, int, int>>> requestValidations;
 
 	do
 	{
 		string request = requestGenerator->generateWriteRequest();
 		string response = client.send(request);
-		//bool isValidResponse = db->addPosterValue(request, response);
+
+		requestValidations.push_back(async(launch::async | launch::deferred, validateAndStore, request, response));
 
 		endTime = chrono::high_resolution_clock::now();
 		timeSpan = chrono::duration_cast<chrono::duration<double>>(endTime - startTime).count();
 		threadPostCount++;
 	} while (timeSpan < timeDurationSecs);
 
-	client.CloseConnection();
+	cout << "Thread " << threadIndex << " validation count = " << requestValidations.size() << "\n\n";
+
 	
 	double totalRunTime = (endTime - startTime).count();
 	double posterRequestsPerSecond = threadPostCount / timeSpan;
@@ -133,8 +144,23 @@ void postRequest(string serverIp, int threadIndex, double timeDurationSecs)
 	tuple<double, double> returnValues = make_tuple(timeSpan, posterRequestsPerSecond);
 	mLock.lock();
 	postRequests += threadPostCount;
-	threadMap[threadIndex] = returnValues;
+	posterThreadMap[threadIndex] = returnValues;
+	//copy(requestValidations.begin(), requestValidations.end(), back_inserter(posterThreadErrorResponses[threadIndex]));
 	mLock.unlock();
+
+	for (int i = 0; i < requestValidations.size(); i++)
+	{
+		tuple<bool, int, int> result = requestValidations[i].get();
+		bool valid = (bool)get<0>(result);
+		int correct = get<1>(result);
+		int actual = get<2>(result);
+		if (!valid)
+		{
+			cout << correct << "\t" << actual << "\n";
+		}
+	}
+
+	client.CloseConnection();
 }
 
 double readRequest(TCPClient client, int threadIndex, double timeDurationSecs)
