@@ -18,14 +18,13 @@
 
 void readRequest(string serverIp, int threadIndex, double timeDurationSecs);
 void postRequest(string serverIp, int threadIndex, double timeDurationSecs);
-tuple<bool, int, int> validateAndStorePosterResponse(int postIndex, string request, string response);
 
-unsigned int readRequests = 0;
-unsigned int postRequests = 0;
+int readRequests = 0;
+int postRequests = 0;
 
 mutex mLock;
 map<int, tuple<double, int>> posterThreadMap;
-queue<tuple<int, string, string>> posterVerificationQueue;
+queue<tuple<int, string, future<string>>> posterVerificationQueue;
 map<int, tuple<double, int>> readerThreadMap;
 Storage* db = new Storage();
 RequestGenerator* requestGenerator = new RequestGenerator();
@@ -100,14 +99,15 @@ int main(int argc, char **argv)
 		std::cout << "\nPoster thread " << i << " (ran for " << threadRunTime << "s) - Average post requests per second: " << posterRequestsPerSecond << "\n";
 	}
 
+	// Should verification be optional?
 	while (!posterVerificationQueue.empty())
 	{
-		tuple<int, string, string> post = posterVerificationQueue.front();
+		tuple<int, string, future<string>> post = move(posterVerificationQueue.front());
 		posterVerificationQueue.pop();
 
 		int postIndex = get<0>(post);
 		string request = get<1>(post);
-		string response = get<2>(post);
+		string response = get<2>(post).get();
 
 		tuple<bool, int, int> postVerification = db->addPosterValue(postIndex, request, response);
 		bool isValid = get<0>(postVerification);
@@ -146,6 +146,13 @@ int main(int argc, char **argv)
 	return 0;
 }
 
+/*
+string sendRequest(TCPClient* client, string request)
+{
+	return client->send(request);
+}
+*/
+
 void postRequest(string serverIp, int threadIndex, double timeDurationSecs)
 {
 	TCPClient client(serverIp, DEFAULT_PORT);
@@ -160,20 +167,19 @@ void postRequest(string serverIp, int threadIndex, double timeDurationSecs)
 	{
 		/*
 			Could limit with
-			if (threadPostCount < (timeDurationSecs * 1000))
+			if (!throttle || (throttle && threadPostCount < (timeDurationSecs * 1000)))
 			{}
 		*/
 		string request = requestGenerator->generateWriteRequest();
 		mLock.lock();
-		string response = client.send(request);
-
-		posterVerificationQueue.push(make_tuple(postRequests, request, response));
+		future<string> responseFut = async(launch::async, &TCPClient::send, &client, request);
+		posterVerificationQueue.push(make_tuple(postRequests, request, move(responseFut)));
 		postRequests++;
 		mLock.unlock();
+		threadPostCount++;
 
 		endTime = chrono::high_resolution_clock::now();
 		timeSpan = chrono::duration_cast<chrono::duration<double>>(endTime - startTime).count();
-		threadPostCount++;
 	} while (timeSpan < timeDurationSecs);
 
 	double totalRunTime = (endTime - startTime).count();
