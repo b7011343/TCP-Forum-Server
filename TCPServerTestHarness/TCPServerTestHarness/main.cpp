@@ -164,9 +164,9 @@ void postRequest(string serverIp, int threadIndex, double timeDurationSecs)
 			{}
 		*/
 		string request = requestGenerator->generateWriteRequest();
+		mLock.lock();
 		string response = client.send(request);
 
-		mLock.lock();
 		posterVerificationQueue.push(make_tuple(postRequests, request, response));
 		postRequests++;
 		mLock.unlock();
