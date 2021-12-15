@@ -3,10 +3,7 @@
 
 using namespace std;
 
-Storage::Storage()
-{
-	//this->pool = new ThreadPool(3);
-}
+Storage::Storage() {}
 
 Storage::~Storage() {}
 
@@ -52,8 +49,8 @@ int Storage::postRequest(string topicId, string message)
 {
 	string messageTrunc = truncate(message, 140);
 	string topicIdTrunc = truncate(topicId, 140);
-	unsigned int messageId = this->topicToMessages[topicIdTrunc].size();
 	lock.lock();
+	unsigned int messageId = this->topicToMessages[topicIdTrunc].size();
 	this->topicToMessages[topicIdTrunc].push_back(messageTrunc);
 	lock.unlock();
 	return messageId;

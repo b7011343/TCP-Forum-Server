@@ -3,6 +3,7 @@
 Storage::Storage()
 {
 	verifier = new ResponseVerifier();
+	//currentPostIndex = 0;
 }
 
 Storage::~Storage()
@@ -10,31 +11,47 @@ Storage::~Storage()
 	delete verifier;
 }
 
-bool Storage::addReaderValue(string request, string response)
+tuple<bool, string, string> Storage::addReaderValue(string request, string response)
 {
-	return false;
+	ReadRequest read = ReadRequest::parse(request);
+	if (!read.valid)
+	{
+		return make_tuple(false, "", response);
+	}
+
+	string correct;
+
+	lock.lock();
+	try
+	{
+		correct = topicToMessages.at(read.topicId).at(stoi(response));
+		lock.unlock();
+	}
+	catch(exception e)
+	{
+		cout << "Error: " << e.what();
+		lock.unlock();
+		return make_tuple(false, "", response);
+	}
+
+	return make_tuple(false, "", "");
 }
 
-tuple<bool, int, int> Storage::addPosterValue(string request, string response)
+tuple<bool, int, int> Storage::addPosterValue(int postIndex, string request, string response)
 {
 	PostRequest post = PostRequest::parse(request);
 	if (!post.valid)
 	{
 		return make_tuple(false, NULL, stoi(response));
 	}
+
 	lock.lock();
-	posterRequestResponseMap[post.getTopicId()].push_back(response);
-	tuple<bool, int, int> validTuple = verifier->correctPostResponse(post.getTopicId(), response, posterRequestResponseMap);
+	this->topicToMessages[post.getTopicId()].push_back(post.getMessage());
+	//posterRequestResponseMap[post.getTopicId()].push_back(response);
+	tuple<bool, int, int> validTuple = verifier->correctPostResponse(post.getTopicId(), response, topicToMessages);
+	//currentPostIndex++;
 	lock.unlock();
+
 	return validTuple;
 }
 
-string Storage::getReaderResponse(string request)
-{
-	return "";
-}
-
-string Storage::getPosterResponse(string request)
-{
-	return "";
-}

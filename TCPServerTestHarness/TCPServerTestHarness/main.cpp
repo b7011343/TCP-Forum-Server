@@ -16,15 +16,16 @@
 
 #define DEFAULT_PORT 12345
 
-double readRequest(string serverIp, int threadIndex, double timeDurationSecs);
+void readRequest(string serverIp, int threadIndex, double timeDurationSecs);
 void postRequest(string serverIp, int threadIndex, double timeDurationSecs);
+tuple<bool, int, int> validateAndStorePosterResponse(int postIndex, string request, string response);
 
 unsigned int readRequests = 0;
 unsigned int postRequests = 0;
 
 mutex mLock;
 map<int, tuple<double, int>> posterThreadMap;
-map<int, vector<future<tuple<bool, int, int>>>> posterThreadErrorResponses;
+queue<tuple<int, string, string>> posterVerificationQueue;
 map<int, tuple<double, int>> readerThreadMap;
 Storage* db = new Storage();
 RequestGenerator* requestGenerator = new RequestGenerator();
@@ -71,17 +72,25 @@ int main(int argc, char **argv)
 
 	ThreadPool posterPool(posterCount);
 	vector<future<void>> posterFutures;
-	double posterTotalTime = 0.0;
+	vector<tuple<string, int, int>> incorrectPostResponses;
+	double posterTotalTime = 0.0; // The total time in seconds that all poster threads took to run
+
 
 	ThreadPool readerPool(readerCount);
 	vector<future<void>> readerFutures;
-	double readerTotalTime = 0.0;
+	double readerTotalTime = 0.0; // The total time in seconds that all reader threads took to run
 
 	for (int i = 0; i < posterCount; i++)
 		posterFutures.push_back(posterPool.enqueue(postRequest, serverIp, i, timeDurationSecs));
 
+	for (int i = 0; i < readerCount; i++)
+		readerFutures.push_back(readerPool.enqueue(readRequest, serverIp, i, timeDurationSecs));
+
 	for (int i = 0; i < posterFutures.size(); i++)
 		posterFutures[i].wait();
+
+	for (int i = 0; i < readerFutures.size(); i++)
+		readerFutures[i].wait();
 
 	for (int i = 0; i < posterThreadMap.size(); i++)
 	{
@@ -91,24 +100,50 @@ int main(int argc, char **argv)
 		std::cout << "\nPoster thread " << i << " (ran for " << threadRunTime << "s) - Average post requests per second: " << posterRequestsPerSecond << "\n";
 	}
 
-	cout << "\nTotal runtime: " << posterTotalTime << "s" << "\n";
-	cout << "\nTotal post requests: " << postRequests << "\n";
-	cout << "\nAverage post requests per second per thread: " << postRequests / posterTotalTime << "\n\n";
-
-	for (int i = 0; i < readerCount; i++)
+	while (!posterVerificationQueue.empty())
 	{
+		tuple<int, string, string> post = posterVerificationQueue.front();
+		posterVerificationQueue.pop();
+
+		int postIndex = get<0>(post);
+		string request = get<1>(post);
+		string response = get<2>(post);
+
+		tuple<bool, int, int> postVerification = db->addPosterValue(postIndex, request, response);
+		bool isValid = get<0>(postVerification);
+
+		if (!isValid)
+		{
+			int correctResponse = get<1>(postVerification);
+			int actualResponse = get<2>(postVerification);
+			incorrectPostResponses.push_back(make_tuple(request, correctResponse, actualResponse));
+		}
 	}
+
+	cout << "\nTotal poster runtime: " << posterTotalTime << "s" << "\n";
+	cout << "\nTotal post requests: " << postRequests << "\n";
+	cout << "\nAverage post requests per second per thread: " << postRequests / posterTotalTime << "\n";
+	cout << "\nIncorrect responses: " << incorrectPostResponses.size() << "\n";
+
+	for (int i = 0; i < incorrectPostResponses.size(); i++)
+	{
+		tuple<string, int, int> incorrectResponse = incorrectPostResponses[i];
+		string request = get<0>(incorrectResponse);
+		int correctResponse = get<1>(incorrectResponse);
+		int actualResponse = get<2>(incorrectResponse);
+		cout << "Incorrect response #" << i + 1 << "\n";
+		cout << "Request: " << request << "\n";
+		cout << "Expected response: " << correctResponse << "\n";
+		cout << "Actual response: " << actualResponse << "\n\n";
+	}
+
+	// TODO: Implement the block above for reader threads
 
 	delete db;
 	delete requestGenerator;
 
 	system("pause");
 	return 0;
-}
-
-tuple<bool, int, int> validateAndStore(string request, string response)
-{
-	return db->addPosterValue(request, response);
 }
 
 void postRequest(string serverIp, int threadIndex, double timeDurationSecs)
@@ -121,23 +156,26 @@ void postRequest(string serverIp, int threadIndex, double timeDurationSecs)
 	chrono::high_resolution_clock::time_point endTime;
 	chrono::high_resolution_clock::time_point startTime = chrono::high_resolution_clock::now();
 	
-	vector<future<tuple<bool, int, int>>> requestValidations;
-
 	do
 	{
+		/*
+			Could limit with
+			if (threadPostCount < (timeDurationSecs * 1000))
+			{}
+		*/
 		string request = requestGenerator->generateWriteRequest();
 		string response = client.send(request);
 
-		requestValidations.push_back(async(launch::async | launch::deferred, validateAndStore, request, response));
+		mLock.lock();
+		posterVerificationQueue.push(make_tuple(postRequests, request, response));
+		postRequests++;
+		mLock.unlock();
 
 		endTime = chrono::high_resolution_clock::now();
 		timeSpan = chrono::duration_cast<chrono::duration<double>>(endTime - startTime).count();
 		threadPostCount++;
 	} while (timeSpan < timeDurationSecs);
 
-	cout << "Thread " << threadIndex << " validation count = " << requestValidations.size() << "\n\n";
-
-	
 	double totalRunTime = (endTime - startTime).count();
 	double posterRequestsPerSecond = threadPostCount / timeSpan;
 
@@ -145,25 +183,12 @@ void postRequest(string serverIp, int threadIndex, double timeDurationSecs)
 	mLock.lock();
 	postRequests += threadPostCount;
 	posterThreadMap[threadIndex] = returnValues;
-	//copy(requestValidations.begin(), requestValidations.end(), back_inserter(posterThreadErrorResponses[threadIndex]));
 	mLock.unlock();
-
-	for (int i = 0; i < requestValidations.size(); i++)
-	{
-		tuple<bool, int, int> result = requestValidations[i].get();
-		bool valid = (bool)get<0>(result);
-		int correct = get<1>(result);
-		int actual = get<2>(result);
-		if (!valid)
-		{
-			cout << correct << "\t" << actual << "\n";
-		}
-	}
 
 	client.CloseConnection();
 }
 
-double readRequest(TCPClient client, int threadIndex, double timeDurationSecs)
+void readRequest(string serverIp, int threadIndex, double timeDurationSecs)
 {
-	return 0.0;
+	//return 0.0;
 }

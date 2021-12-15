@@ -12,17 +12,20 @@ RequestGenerator::~RequestGenerator() {}
 
 string RequestGenerator::generateWriteRequest()
 {
-	unsigned int i = writeIndex % writeRequests.size();
 	lock.lock();
+	int i = writeIndex % writeRequests.size();
 	writeIndex++;
-	lock.unlock();
 	string request = writeRequests[i];
+	lock.unlock();
 	return request;
 }
 
 string RequestGenerator::generateReadRequest()
 {
-	unsigned int i = readIndex % readRequests.size();
+	lock.lock();
+	int i = readIndex % readRequests.size();
 	readIndex++;
-	return readRequests[i];
+	string request = readRequests[i];
+	lock.unlock();
+	return request;
 }

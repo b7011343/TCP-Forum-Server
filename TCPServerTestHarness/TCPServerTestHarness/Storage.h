@@ -2,8 +2,11 @@
 #include <map>
 #include <future>
 #include <string>
+#include <iostream>
 #include <vector>
 #include <shared_mutex>
+#include <condition_variable>
+#include <queue>
 
 #include "ResponseVerifier.h"
 #include "RequestParser.h"
@@ -15,14 +18,14 @@ class Storage
 public:
 	Storage();
 	~Storage();
-	bool addReaderValue(string request, string response);
-	tuple<bool, int, int> addPosterValue(string request, string response);
-	string getReaderResponse(string request);
-	string getPosterResponse(string request);
+	tuple<bool, string, string> addReaderValue(string request, string response);
+	tuple<bool, int, int> addPosterValue(int postIndex, string request, string response);
 
 private:
-	map<string, string> readerRequestResponseMap;
-	map<string, vector<string>> posterRequestResponseMap;
+	map<string, vector<string>> topicToMessages;
+	//map<string, string> readerRequestResponseMap;
+	//map<string, vector<string>> posterRequestResponseMap;
 	ResponseVerifier* verifier;
-	shared_mutex lock;
+	mutex lock;
+	//int currentPostIndex;
 };
