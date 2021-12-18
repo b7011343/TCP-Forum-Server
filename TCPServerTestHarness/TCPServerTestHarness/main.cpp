@@ -18,14 +18,19 @@
 
 void readRequest(string serverIp, int threadIndex, double timeDurationSecs);
 void postRequest(string serverIp, int threadIndex, double timeDurationSecs);
+void verifyPosts();
+void verifyReads();
 
 int readRequests = 0;
 int postRequests = 0;
 
-mutex mLock;
 map<int, tuple<double, int>> posterThreadMap;
-queue<tuple<int, string, future<string>>> posterVerificationQueue;
+queue<tuple<int, string, string>> posterVerificationQueue;
+
 map<int, tuple<double, int>> readerThreadMap;
+queue<tuple<int, string, string>> readerVerificationQueue;
+
+mutex mLock;
 Storage* db = new Storage();
 RequestGenerator* requestGenerator = new RequestGenerator();
 
@@ -71,7 +76,6 @@ int main(int argc, char **argv)
 
 	ThreadPool posterPool(posterCount);
 	vector<future<void>> posterFutures;
-	vector<tuple<string, int, int>> incorrectPostResponses;
 	double posterTotalTime = 0.0; // The total time in seconds that all poster threads took to run
 
 
@@ -93,49 +97,20 @@ int main(int argc, char **argv)
 
 	for (int i = 0; i < posterThreadMap.size(); i++)
 	{
-		double posterRequestsPerSecond = get<1>(posterThreadMap[i]);
 		double threadRunTime = get<0>(posterThreadMap[i]);
+		double posterRequestsPerSecond = get<1>(posterThreadMap[i]);
 		posterTotalTime += threadRunTime;
 		std::cout << "\nPoster thread " << i << " (ran for " << threadRunTime << "s) - Average post requests per second: " << posterRequestsPerSecond << "\n";
 	}
 
-	// Should verification be optional?
-	while (!posterVerificationQueue.empty())
-	{
-		tuple<int, string, future<string>> post = move(posterVerificationQueue.front());
-		posterVerificationQueue.pop();
-
-		int postIndex = get<0>(post);
-		string request = get<1>(post);
-		string response = get<2>(post).get();
-
-		tuple<bool, int, int> postVerification = db->addPosterValue(postIndex, request, response);
-		bool isValid = get<0>(postVerification);
-
-		if (!isValid)
-		{
-			int correctResponse = get<1>(postVerification);
-			int actualResponse = get<2>(postVerification);
-			incorrectPostResponses.push_back(make_tuple(request, correctResponse, actualResponse));
-		}
-	}
-
 	cout << "\nTotal poster runtime: " << posterTotalTime << "s" << "\n";
-	cout << "\nTotal post requests: " << postRequests << "\n";
-	cout << "\nAverage post requests per second per thread: " << postRequests / posterTotalTime << "\n";
-	cout << "\nIncorrect responses: " << incorrectPostResponses.size() << "\n";
-
-	for (int i = 0; i < incorrectPostResponses.size(); i++)
-	{
-		tuple<string, int, int> incorrectResponse = incorrectPostResponses[i];
-		string request = get<0>(incorrectResponse);
-		int correctResponse = get<1>(incorrectResponse);
-		int actualResponse = get<2>(incorrectResponse);
-		cout << "Incorrect response #" << i + 1 << "\n";
-		cout << "Request: " << request << "\n";
-		cout << "Expected response: " << correctResponse << "\n";
-		cout << "Actual response: " << actualResponse << "\n\n";
-	}
+	cout << "Total post requests: " << postRequests << "\n";
+	cout << "Average post requests per second per thread: " << postRequests / posterTotalTime << "\n";
+	
+	cout << "\nDo you want to verify all the responses? (Warning: This can take a while)\n";
+	system("pause");
+	verifyPosts();
+	verifyReads();
 
 	// TODO: Implement the block above for reader threads
 
@@ -145,13 +120,6 @@ int main(int argc, char **argv)
 	system("pause");
 	return 0;
 }
-
-/*
-string sendRequest(TCPClient* client, string request)
-{
-	return client->send(request);
-}
-*/
 
 void postRequest(string serverIp, int threadIndex, double timeDurationSecs)
 {
@@ -165,16 +133,11 @@ void postRequest(string serverIp, int threadIndex, double timeDurationSecs)
 	
 	do
 	{
-		/*
-			Could limit with
-			if (!throttle || (throttle && threadPostCount < (timeDurationSecs * 1000)))
-			{}
-		*/
+		// TODO: Add throttling
 		string request = requestGenerator->generateWriteRequest();
-		mLock.lock();
-		future<string> responseFut = async(launch::async, &TCPClient::send, &client, request);
-		posterVerificationQueue.push(make_tuple(postRequests, request, move(responseFut)));
-		postRequests++;
+		mLock.lock(); // nneed a way to avoid locking around the request sending
+		string response = client.send(request);
+		posterVerificationQueue.push(make_tuple(postRequests, request, response)); // TODO: create a local copy of this queue  and then push into main one afterwards
 		mLock.unlock();
 		threadPostCount++;
 
@@ -184,8 +147,8 @@ void postRequest(string serverIp, int threadIndex, double timeDurationSecs)
 
 	double totalRunTime = (endTime - startTime).count();
 	double posterRequestsPerSecond = threadPostCount / timeSpan;
-
 	tuple<double, double> returnValues = make_tuple(timeSpan, posterRequestsPerSecond);
+
 	mLock.lock();
 	postRequests += threadPostCount;
 	posterThreadMap[threadIndex] = returnValues;
@@ -196,5 +159,80 @@ void postRequest(string serverIp, int threadIndex, double timeDurationSecs)
 
 void readRequest(string serverIp, int threadIndex, double timeDurationSecs)
 {
-	//return 0.0;
+	TCPClient client(serverIp, DEFAULT_PORT);
+	client.OpenConnection();
+
+	int threadReadCount = 0;
+	double timeSpan;
+	chrono::high_resolution_clock::time_point endTime;
+	chrono::high_resolution_clock::time_point startTime = chrono::high_resolution_clock::now();
+
+	do
+	{
+		string request = requestGenerator->generateReadRequest();
+		mLock.lock();
+		string response = client.send(request);
+		readerVerificationQueue.push(make_tuple(postRequests, request, response)); // TODO: create a local copy of this queue  and then push into main one afterwards
+		mLock.unlock();
+		threadReadCount++;
+
+		endTime = chrono::high_resolution_clock::now();
+		timeSpan = chrono::duration_cast<chrono::duration<double>>(endTime - startTime).count();
+	} while (timeSpan < timeDurationSecs);
+
+	double totalRunTime = (endTime - startTime).count();
+	double posterRequestsPerSecond = threadReadCount / timeSpan;
+	tuple<double, double> returnValues = make_tuple(timeSpan, posterRequestsPerSecond);
+
+	mLock.lock();
+	readRequests += threadReadCount;
+	readerThreadMap[threadIndex] = returnValues;
+	mLock.unlock();
+
+	client.CloseConnection();
+}
+
+void verifyPosts()
+{
+	vector<tuple<string, int, int>> incorrectPostResponses;
+
+	while (!posterVerificationQueue.empty())
+	{
+		tuple<int, string, string> post = posterVerificationQueue.front();
+		posterVerificationQueue.pop();
+
+		int postIndex = get<0>(post);
+		string request = get<1>(post);
+		string response = get<2>(post);
+
+		tuple<bool, int, int> postVerification = db->addPosterValue(postIndex, request, response);
+		bool isValid = get<0>(postVerification);
+
+		if (!isValid)
+		{
+			int correctResponse = get<1>(postVerification);
+			int actualResponse = get<2>(postVerification);
+			cout << "Invalid response found! Should be " << correctResponse << " but actual response was " << actualResponse << "\n";
+			incorrectPostResponses.push_back(make_tuple(request, correctResponse, actualResponse));
+		}
+	}
+
+	cout << "\nIncorrect post responses: " << incorrectPostResponses.size() << "\n";
+
+	for (int i = 0; i < incorrectPostResponses.size(); i++)
+	{
+		tuple<string, int, int> incorrectResponse = incorrectPostResponses[i];
+		string request = get<0>(incorrectResponse);
+		int correctResponse = get<1>(incorrectResponse);
+		int actualResponse = get<2>(incorrectResponse);
+		cout << "Incorrect response #" << i + 1 << "\n";
+		cout << "Request: " << request << "\n";
+		cout << "Expected response: " << correctResponse << "\n";
+		cout << "Actual response: " << actualResponse << "\n\n";
+	}
+}
+
+void verifyReads()
+{
+
 }
