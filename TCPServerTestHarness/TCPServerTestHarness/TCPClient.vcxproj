@@ -119,6 +119,7 @@
     <ClCompile Include="TCPClient.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Limiter.h" />
     <ClInclude Include="RequestGenerator.h" />
     <ClInclude Include="RequestParser.h" />
     <ClInclude Include="ResponseVerifier.h" />

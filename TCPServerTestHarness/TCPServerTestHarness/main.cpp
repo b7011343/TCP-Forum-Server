@@ -4,7 +4,8 @@
 #include <thread>
 #include <future>
 #include <queue>
-#include <mutex>
+#include <shared_mutex>
+#include <condition_variable>
 #include <tuple>
 #include <map>
 
@@ -16,6 +17,14 @@
 
 #define DEFAULT_PORT 12345
 
+struct compare
+{
+	bool operator()(tuple<long long int, string, string> a, tuple<long long int, string, string> b)
+	{
+		return get<0>(a) > get<0>(b);
+	}
+};
+
 void readRequest(string serverIp, int threadIndex, double timeDurationSecs);
 void postRequest(string serverIp, int threadIndex, double timeDurationSecs);
 void verifyPosts();
@@ -25,14 +34,16 @@ int readRequests = 0;
 int postRequests = 0;
 
 map<int, tuple<double, int>> posterThreadMap;
-queue<tuple<int, string, string>> posterVerificationQueue;
+priority_queue<tuple<long long int, string, string>, vector<tuple<long long int, string, string>>, compare> posterVerificationQueue;
 
 map<int, tuple<double, int>> readerThreadMap;
-queue<tuple<int, string, string>> readerVerificationQueue;
+queue<tuple<long int, string, string>> readerVerificationQueue;
 
-mutex mLock;
+shared_mutex mLock;
+condition_variable cv;
 Storage* db = new Storage();
 RequestGenerator* requestGenerator = new RequestGenerator();
+ResponseVerifier* verifier = new ResponseVerifier(db);
 
 int main(int argc, char **argv)
 {
@@ -78,7 +89,6 @@ int main(int argc, char **argv)
 	vector<future<void>> posterFutures;
 	double posterTotalTime = 0.0; // The total time in seconds that all poster threads took to run
 
-
 	ThreadPool readerPool(readerCount);
 	vector<future<void>> readerFutures;
 	double readerTotalTime = 0.0; // The total time in seconds that all reader threads took to run
@@ -109,8 +119,9 @@ int main(int argc, char **argv)
 	
 	cout << "\nDo you want to verify all the responses? (Warning: This can take a while)\n";
 	system("pause");
-	verifyPosts();
-	verifyReads();
+	int invalidResponses = verifier->validatePostResponses();
+	//verifyPosts();
+	//verifyReads();
 
 	// TODO: Implement the block above for reader threads
 
@@ -131,14 +142,12 @@ void postRequest(string serverIp, int threadIndex, double timeDurationSecs)
 	chrono::high_resolution_clock::time_point endTime;
 	chrono::high_resolution_clock::time_point startTime = chrono::high_resolution_clock::now();
 	
-	do
+	do 
 	{
 		// TODO: Add throttling
 		string request = requestGenerator->generateWriteRequest();
-		mLock.lock(); // nneed a way to avoid locking around the request sending
 		string response = client.send(request);
-		posterVerificationQueue.push(make_tuple(postRequests, request, response)); // TODO: create a local copy of this queue  and then push into main one afterwards
-		mLock.unlock();
+		db->addPosterValue2(0, request, response);
 		threadPostCount++;
 
 		endTime = chrono::high_resolution_clock::now();
@@ -172,7 +181,7 @@ void readRequest(string serverIp, int threadIndex, double timeDurationSecs)
 		string request = requestGenerator->generateReadRequest();
 		mLock.lock();
 		string response = client.send(request);
-		readerVerificationQueue.push(make_tuple(postRequests, request, response)); // TODO: create a local copy of this queue  and then push into main one afterwards
+		readerVerificationQueue.push(make_tuple(0, request, response)); // TODO: create a local copy of this queue  and then push into main one afterwards
 		mLock.unlock();
 		threadReadCount++;
 
@@ -196,9 +205,10 @@ void verifyPosts()
 {
 	vector<tuple<string, int, int>> incorrectPostResponses;
 
+
 	while (!posterVerificationQueue.empty())
 	{
-		tuple<int, string, string> post = posterVerificationQueue.front();
+		tuple<int, string, string> post = posterVerificationQueue.top();
 		posterVerificationQueue.pop();
 
 		int postIndex = get<0>(post);

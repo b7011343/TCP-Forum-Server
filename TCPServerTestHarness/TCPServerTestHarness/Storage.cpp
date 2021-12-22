@@ -2,13 +2,13 @@
 
 Storage::Storage()
 {
-	verifier = new ResponseVerifier();
+	//verifier = new ResponseVerifier();
 	//currentPostIndex = 0;
 }
 
 Storage::~Storage()
 {
-	delete verifier;
+	//delete verifier;
 }
 
 tuple<bool, string, string> Storage::addReaderValue(string request, string response)
@@ -48,10 +48,23 @@ tuple<bool, int, int> Storage::addPosterValue(int postIndex, string request, str
 	lock.lock();
 	this->topicToMessages[post.getTopicId()].push_back(post.getMessage());
 	//posterRequestResponseMap[post.getTopicId()].push_back(response);
-	tuple<bool, int, int> validTuple = verifier->correctPostResponse(post.getTopicId(), response, topicToMessages);
+	//tuple<bool, int, int> validTuple = verifier->correctPostResponse(post.getTopicId(), response, topicToMessages);
 	//currentPostIndex++;
 	lock.unlock();
 
-	return validTuple;
+	return make_tuple(false, NULL, stoi(response));;
+}
+
+void Storage::addPosterValue2(int postIndex, string request, string response)
+{
+	lock.lock();
+	PostRequest post = PostRequest::parse(request);
+	this->topicToMessagesWithResponse[post.getTopicId()].push_back(make_tuple(post.getMessage(), response));
+	lock.unlock();
+}
+
+map<string, vector<tuple<string, string>>> Storage::getTopicToMessagesWithResponse()
+{
+	return this->topicToMessagesWithResponse;
 }
 
