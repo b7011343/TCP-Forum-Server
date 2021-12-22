@@ -20,7 +20,7 @@ public:
 	Storage();
 	~Storage();
 	tuple<bool, string, string> addReaderValue(string request, string response);
-	void addPosterValue(string topicId, string message, string response);
+	void addPosterValue(string request, string response);
 	map<string, vector<tuple<string, string>>> getTopicToMessagesWithResponse();
 
 private:

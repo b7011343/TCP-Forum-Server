@@ -3,9 +3,7 @@
 #include <chrono>
 #include <thread>
 #include <future>
-#include <queue>
 #include <mutex>
-#include <condition_variable>
 #include <tuple>
 #include <map>
 
@@ -14,29 +12,18 @@
 #include "RequestGenerator.h"
 #include "ResponseVerifier.h"
 #include "Storage.h"
-#include "RequestParser.h"
+#include "TokenBucket.h"
 
 #define DEFAULT_PORT 12345
 
-struct compare
-{
-	bool operator()(tuple<long long int, string, string> a, tuple<long long int, string, string> b)
-	{
-		return get<0>(a) > get<0>(b);
-	}
-};
+void readRequest(string serverIp, int threadIndex, double timeDurationSecs, bool throttle);
+void postRequest(string serverIp, int threadIndex, double timeDurationSecs, bool throttle);
 
-void readRequest(string serverIp, int threadIndex, double timeDurationSecs);
-void postRequest(string serverIp, int threadIndex, double timeDurationSecs);
-
-int readRequests = 0;
-int postRequests = 0;
+unsigned int readRequests = 0;
+unsigned int postRequests = 0;
 
 map<int, tuple<double, int>> posterThreadMap;
-priority_queue<tuple<long long int, string, string>, vector<tuple<long long int, string, string>>, compare> posterVerificationQueue;
-
 map<int, tuple<double, int>> readerThreadMap;
-queue<tuple<long int, string, string>> readerVerificationQueue;
 
 mutex mLock;
 condition_variable cv;
@@ -49,7 +36,7 @@ int main(int argc, char **argv)
 	unsigned int posterCount = 5;
 	unsigned int readerCount = 0;
 	double timeDurationSecs = 10;
-	bool throttle = false;
+	bool throttle = true;
 	string serverIp = "127.0.0.1";
 
 	// Validate the parameters
@@ -92,10 +79,10 @@ int main(int argc, char **argv)
 	double readerTotalTime = 0.0; // The total time in seconds that all reader threads took to run
 
 	for (int i = 0; i < posterCount; i++)
-		posterFutures.push_back(posterPool.enqueue(postRequest, serverIp, i, timeDurationSecs));
+		posterFutures.push_back(posterPool.enqueue(postRequest, serverIp, i, timeDurationSecs, throttle));
 
 	for (int i = 0; i < readerCount; i++)
-		readerFutures.push_back(readerPool.enqueue(readRequest, serverIp, i, timeDurationSecs));
+		readerFutures.push_back(readerPool.enqueue(readRequest, serverIp, i, timeDurationSecs, throttle));
 
 	for (int i = 0; i < posterFutures.size(); i++)
 		posterFutures[i].wait();
@@ -134,25 +121,28 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-void postRequest(string serverIp, int threadIndex, double timeDurationSecs)
+void postRequest(string serverIp, int threadIndex, double timeDurationSecs, bool throttle)
 {
 	RequestGenerator* requestGenerator = new RequestGenerator(threadIndex);
+	TokenBucket* rateLimiter = new TokenBucket(1000, 2); // not making exactly 1000 calls
 	TCPClient client(serverIp, DEFAULT_PORT);
 	client.OpenConnection();
 
-	int threadPostCount = 0;
+	unsigned int threadPostCount = 0;
 	double timeSpan;
 	chrono::high_resolution_clock::time_point endTime;
 	chrono::high_resolution_clock::time_point startTime = chrono::high_resolution_clock::now();
 	
 	do 
 	{
-		// TODO: Add throttling
-		string request = requestGenerator->generateWriteRequest();
-		PostRequest post = PostRequest::parse(request);
-		string response = client.send(request);
-		db->addPosterValue(post.getTopicId(), post.getTopicId(), response);
-		threadPostCount++;
+		bool canConsume = rateLimiter->consume(1);
+		if (!throttle || canConsume)
+		{
+			string request = requestGenerator->generateWriteRequest();
+			string response = client.send(request);
+			db->addPosterValue(request, response);
+			threadPostCount++;
+		}
 		endTime = chrono::high_resolution_clock::now();
 		timeSpan = chrono::duration_cast<chrono::duration<double>>(endTime - startTime).count();
 	} while (timeSpan < timeDurationSecs);
@@ -168,9 +158,10 @@ void postRequest(string serverIp, int threadIndex, double timeDurationSecs)
 
 	client.CloseConnection();
 	delete requestGenerator;
+	delete rateLimiter;
 }
 
-void readRequest(string serverIp, int threadIndex, double timeDurationSecs)
+void readRequest(string serverIp, int threadIndex, double timeDurationSecs, bool throttle)
 {
 	RequestGenerator* requestGenerator = new RequestGenerator(threadIndex);
 	TCPClient client(serverIp, DEFAULT_PORT);
@@ -186,7 +177,6 @@ void readRequest(string serverIp, int threadIndex, double timeDurationSecs)
 		string request = requestGenerator->generateReadRequest();
 		mLock.lock();
 		string response = client.send(request);
-		readerVerificationQueue.push(make_tuple(0, request, response)); // TODO: create a local copy of this queue  and then push into main one afterwards
 		mLock.unlock();
 		threadReadCount++;
 

@@ -36,10 +36,11 @@ tuple<bool, string, string> Storage::addReaderValue(string request, string respo
 	return make_tuple(false, "", "");
 }
 
-void Storage::addPosterValue(string topicId, string message, string response)
+void Storage::addPosterValue(string request, string response)
 {
+	PostRequest post = PostRequest::parse(request);
 	lock.lock();
-	this->topicToMessagesWithResponse[topicId].push_back(make_tuple(message, response));
+	this->topicToMessagesWithResponse[post.getTopicId()].push_back(make_tuple(post.getMessage() , response));
 	lock.unlock();
 }
 
