@@ -4,7 +4,7 @@
 #include <thread>
 #include <future>
 #include <queue>
-#include <shared_mutex>
+#include <mutex>
 #include <condition_variable>
 #include <tuple>
 #include <map>
@@ -14,6 +14,7 @@
 #include "RequestGenerator.h"
 #include "ResponseVerifier.h"
 #include "Storage.h"
+#include "RequestParser.h"
 
 #define DEFAULT_PORT 12345
 
@@ -27,8 +28,6 @@ struct compare
 
 void readRequest(string serverIp, int threadIndex, double timeDurationSecs);
 void postRequest(string serverIp, int threadIndex, double timeDurationSecs);
-void verifyPosts();
-void verifyReads();
 
 int readRequests = 0;
 int postRequests = 0;
@@ -39,10 +38,9 @@ priority_queue<tuple<long long int, string, string>, vector<tuple<long long int,
 map<int, tuple<double, int>> readerThreadMap;
 queue<tuple<long int, string, string>> readerVerificationQueue;
 
-shared_mutex mLock;
+mutex mLock;
 condition_variable cv;
 Storage* db = new Storage();
-RequestGenerator* requestGenerator = new RequestGenerator();
 ResponseVerifier* verifier = new ResponseVerifier(db);
 
 int main(int argc, char **argv)
@@ -119,14 +117,18 @@ int main(int argc, char **argv)
 	
 	cout << "\nDo you want to verify all the responses? (Warning: This can take a while)\n";
 	system("pause");
-	int invalidResponses = verifier->validatePostResponses();
-	//verifyPosts();
-	//verifyReads();
 
-	// TODO: Implement the block above for reader threads
+	int invalidResponses = verifier->validatePostResponses();
+	if (invalidResponses > 0)
+	{
+		cout << "\n" << invalidResponses << "/" << postRequests << " invalid posts\n";
+	}
+	else
+	{
+		cout << "\nAll responses valid\n";
+	}
 
 	delete db;
-	delete requestGenerator;
 
 	system("pause");
 	return 0;
@@ -134,6 +136,7 @@ int main(int argc, char **argv)
 
 void postRequest(string serverIp, int threadIndex, double timeDurationSecs)
 {
+	RequestGenerator* requestGenerator = new RequestGenerator(threadIndex);
 	TCPClient client(serverIp, DEFAULT_PORT);
 	client.OpenConnection();
 
@@ -146,10 +149,10 @@ void postRequest(string serverIp, int threadIndex, double timeDurationSecs)
 	{
 		// TODO: Add throttling
 		string request = requestGenerator->generateWriteRequest();
+		PostRequest post = PostRequest::parse(request);
 		string response = client.send(request);
-		db->addPosterValue2(0, request, response);
+		db->addPosterValue(post.getTopicId(), post.getTopicId(), response);
 		threadPostCount++;
-
 		endTime = chrono::high_resolution_clock::now();
 		timeSpan = chrono::duration_cast<chrono::duration<double>>(endTime - startTime).count();
 	} while (timeSpan < timeDurationSecs);
@@ -164,10 +167,12 @@ void postRequest(string serverIp, int threadIndex, double timeDurationSecs)
 	mLock.unlock();
 
 	client.CloseConnection();
+	delete requestGenerator;
 }
 
 void readRequest(string serverIp, int threadIndex, double timeDurationSecs)
 {
+	RequestGenerator* requestGenerator = new RequestGenerator(threadIndex);
 	TCPClient client(serverIp, DEFAULT_PORT);
 	client.OpenConnection();
 
@@ -199,50 +204,5 @@ void readRequest(string serverIp, int threadIndex, double timeDurationSecs)
 	mLock.unlock();
 
 	client.CloseConnection();
-}
-
-void verifyPosts()
-{
-	vector<tuple<string, int, int>> incorrectPostResponses;
-
-
-	while (!posterVerificationQueue.empty())
-	{
-		tuple<int, string, string> post = posterVerificationQueue.top();
-		posterVerificationQueue.pop();
-
-		int postIndex = get<0>(post);
-		string request = get<1>(post);
-		string response = get<2>(post);
-
-		tuple<bool, int, int> postVerification = db->addPosterValue(postIndex, request, response);
-		bool isValid = get<0>(postVerification);
-
-		if (!isValid)
-		{
-			int correctResponse = get<1>(postVerification);
-			int actualResponse = get<2>(postVerification);
-			cout << "Invalid response found! Should be " << correctResponse << " but actual response was " << actualResponse << "\n";
-			incorrectPostResponses.push_back(make_tuple(request, correctResponse, actualResponse));
-		}
-	}
-
-	cout << "\nIncorrect post responses: " << incorrectPostResponses.size() << "\n";
-
-	for (int i = 0; i < incorrectPostResponses.size(); i++)
-	{
-		tuple<string, int, int> incorrectResponse = incorrectPostResponses[i];
-		string request = get<0>(incorrectResponse);
-		int correctResponse = get<1>(incorrectResponse);
-		int actualResponse = get<2>(incorrectResponse);
-		cout << "Incorrect response #" << i + 1 << "\n";
-		cout << "Request: " << request << "\n";
-		cout << "Expected response: " << correctResponse << "\n";
-		cout << "Actual response: " << actualResponse << "\n\n";
-	}
-}
-
-void verifyReads()
-{
-
+	delete requestGenerator;
 }

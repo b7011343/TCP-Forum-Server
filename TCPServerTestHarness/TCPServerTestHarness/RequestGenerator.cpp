@@ -1,11 +1,23 @@
 #include "RequestGenerator.h"
 
-RequestGenerator::RequestGenerator()
+RequestGenerator::RequestGenerator(int threadIndex)
 {
+	for (int i = 0; i < 10; i++)
+	{
+		stringstream stringStream;
+		stringStream << "POST@Topic" << threadIndex << "#" << getRandomString(5);
+		writeRequests.push_back(stringStream.str());
+	}
+
+	for (int i = 0; i < 10; i++)
+	{
+		stringstream stringStream;
+		stringStream << "READ@Topic" << threadIndex << "#" << i;
+		readRequests.push_back(stringStream.str());
+	}
+
 	writeIndex = 0;
 	readIndex = 0;
-	writeRequests = { "POST@Topic1#This is a test", "POST@Topic2#This is another test", "POST@Topic3#This is a test for an additional topic" }; // add more reqs to this
-	readRequests = { "READ@Topic1#0", "READ@Topic2#1", "READ@Topic3#0", "READ@Topic1#2", "READ@Topic2#3", "READ@Topic3#1", "READ@Topic1#4", "READ@Topic2#5", "READ@Topic3#4" };
 }
 
 RequestGenerator::~RequestGenerator() {}
@@ -32,4 +44,20 @@ string RequestGenerator::generateReadRequest()
 	readIndex++;
 	lock.unlock();
 	return request;
+}
+
+string RequestGenerator::getRandomString(const int len) {
+	static const char alphanum[] =
+		"0123456789"
+		"ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+		"abcdefghijklmnopqrstuvwxyz";
+
+	string tmp_s;
+	tmp_s.reserve(len);
+
+	for (int i = 0; i < len; ++i) {
+		tmp_s += alphanum[rand() % (sizeof(alphanum) - 1)];
+	}
+
+	return tmp_s;
 }

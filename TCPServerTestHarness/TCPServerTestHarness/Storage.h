@@ -20,16 +20,10 @@ public:
 	Storage();
 	~Storage();
 	tuple<bool, string, string> addReaderValue(string request, string response);
-	tuple<bool, int, int> addPosterValue(int postIndex, string request, string response);
-	void addPosterValue2(int postIndex, string request, string response);
+	void addPosterValue(string topicId, string message, string response);
 	map<string, vector<tuple<string, string>>> getTopicToMessagesWithResponse();
 
 private:
-	map<string, vector<string>> topicToMessages;
 	map<string, vector<tuple<string, string>>> topicToMessagesWithResponse;
-	//map<string, string> readerRequestResponseMap;
-	//map<string, vector<string>> posterRequestResponseMap;
-	//ResponseVerifier* verifier;
 	mutex lock;
-	//int currentPostIndex;
 };

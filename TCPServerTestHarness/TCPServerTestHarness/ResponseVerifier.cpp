@@ -43,8 +43,8 @@ int ResponseVerifier::validatePostResponses()
 			{
 				invalidResponses++;
 				cout << "\nInvalid Response!\n";
-				cout << "\nExpected Response: " << i << "\n";
-				cout << "\nReceived Response: " << response << "\n";
+				cout << "Expected Response: " << i << "\n";
+				cout << "Received Response: " << response << "\n";
 			}
 		}
 	}

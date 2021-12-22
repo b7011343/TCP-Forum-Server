@@ -24,7 +24,6 @@ tuple<bool, string, string> Storage::addReaderValue(string request, string respo
 	lock.lock();
 	try
 	{
-		correct = topicToMessages.at(read.topicId).at(stoi(response));
 		lock.unlock();
 	}
 	catch(exception e)
@@ -37,29 +36,10 @@ tuple<bool, string, string> Storage::addReaderValue(string request, string respo
 	return make_tuple(false, "", "");
 }
 
-tuple<bool, int, int> Storage::addPosterValue(int postIndex, string request, string response)
-{
-	PostRequest post = PostRequest::parse(request);
-	if (!post.valid)
-	{
-		return make_tuple(false, NULL, stoi(response));
-	}
-
-	lock.lock();
-	this->topicToMessages[post.getTopicId()].push_back(post.getMessage());
-	//posterRequestResponseMap[post.getTopicId()].push_back(response);
-	//tuple<bool, int, int> validTuple = verifier->correctPostResponse(post.getTopicId(), response, topicToMessages);
-	//currentPostIndex++;
-	lock.unlock();
-
-	return make_tuple(false, NULL, stoi(response));;
-}
-
-void Storage::addPosterValue2(int postIndex, string request, string response)
+void Storage::addPosterValue(string topicId, string message, string response)
 {
 	lock.lock();
-	PostRequest post = PostRequest::parse(request);
-	this->topicToMessagesWithResponse[post.getTopicId()].push_back(make_tuple(post.getMessage(), response));
+	this->topicToMessagesWithResponse[topicId].push_back(make_tuple(message, response));
 	lock.unlock();
 }
 
@@ -67,4 +47,3 @@ map<string, vector<tuple<string, string>>> Storage::getTopicToMessagesWithRespon
 {
 	return this->topicToMessagesWithResponse;
 }
-
