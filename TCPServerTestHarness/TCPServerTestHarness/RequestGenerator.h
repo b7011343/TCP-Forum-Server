@@ -3,10 +3,7 @@
 #include <vector>
 #include <future>
 #include <tuple>
-#include <shared_mutex>
 #include <sstream>
-
-#include "TCPClient.h"
 
 using namespace std;
 
@@ -24,5 +21,4 @@ private:
 	vector<string> readRequests;
 	int writeIndex;
 	int readIndex;
-	shared_mutex lock;
 };

@@ -4,6 +4,7 @@
 #include <vector>
 #include <tuple>
 #include <shared_mutex>
+#include <iostream>
 
 #include "Storage.h"
 
@@ -15,8 +16,7 @@ public:
 	ResponseVerifier(Storage* db);
 	~ResponseVerifier();
 	int validatePostResponses();
-	tuple<bool, int, int> correctPostResponse(string topicId, string response, map<string, vector<string>> map);
-	tuple<bool, string, string> correctReadResponse(string request, string response, map<string, vector<string>> map);
+	int validateReadResponses();
 
 private:
 	shared_mutex lock;

@@ -1,39 +1,15 @@
 #include "Storage.h"
 
-Storage::Storage()
-{
-	//verifier = new ResponseVerifier();
-	//currentPostIndex = 0;
-}
+Storage::Storage() {}
 
-Storage::~Storage()
-{
-	//delete verifier;
-}
+Storage::~Storage() {}
 
-tuple<bool, string, string> Storage::addReaderValue(string request, string response)
+void Storage::addReaderValue(string request, string response)
 {
 	ReadRequest read = ReadRequest::parse(request);
-	if (!read.valid)
-	{
-		return make_tuple(false, "", response);
-	}
-
-	string correct;
-
 	lock.lock();
-	try
-	{
-		lock.unlock();
-	}
-	catch(exception e)
-	{
-		cout << "Error: " << e.what();
-		lock.unlock();
-		return make_tuple(false, "", response);
-	}
-
-	return make_tuple(false, "", "");
+	this->readerRequestsWithResponses[read.getTopicId()].push_back(make_tuple(read.getPostId(), response));
+	lock.unlock();
 }
 
 void Storage::addPosterValue(string request, string response)
@@ -47,4 +23,9 @@ void Storage::addPosterValue(string request, string response)
 map<string, vector<tuple<string, string>>> Storage::getTopicToMessagesWithResponse()
 {
 	return this->topicToMessagesWithResponse;
+}
+
+map<string, vector<tuple<int, string>>> Storage::getReaderRequestsWithResponses()
+{
+	return this->readerRequestsWithResponses;
 }
