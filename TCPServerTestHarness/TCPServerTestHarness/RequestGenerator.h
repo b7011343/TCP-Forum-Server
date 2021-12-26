@@ -10,7 +10,7 @@ using namespace std;
 class RequestGenerator
 {
 public:
-	RequestGenerator(int threadIndex);
+	RequestGenerator(int threadIndex, int posterCount);
 	~RequestGenerator();
 	string generateWriteRequest();
 	string generateReadRequest();

@@ -12,18 +12,21 @@
 #include "RequestGenerator.h"
 #include "ResponseVerifier.h"
 #include "Storage.h"
-#include "TokenBucket.h"
+#include "Limiter.h"
 
 #define DEFAULT_PORT 12345
+#define THROTTLE_RATE 1000
+#define THROTTLE_BURST 100
+#define THROTTLE_N 1
 
-void readRequest(string serverIp, int threadIndex, double timeDurationSecs, bool throttle);
-void postRequest(string serverIp, int threadIndex, double timeDurationSecs, bool throttle);
+void readRequest(string serverIp, int threadIndex, double timeDurationSecs, bool throttle, int posterCount);
+void postRequest(string serverIp, int threadIndex, double timeDurationSecs, bool throttle, int posterCount);
 
 unsigned int readRequests = 0;
 unsigned int postRequests = 0;
 
-map<int, tuple<double, int>> posterThreadMap;
-map<int, tuple<double, int>> readerThreadMap;
+map<int, tuple<double, double, int>> posterThreadMap;
+map<int, tuple<double, double, int>> readerThreadMap;
 
 mutex mLock;
 Storage* db = new Storage();
@@ -46,7 +49,7 @@ int main(int argc, char **argv)
 		std::cout << "number_of_reader_threads - number of threads performing READ operations\n";
 		std::cout << "time_duration - duration of test execution in seconds\n";
 		std::cout << "throttle(0|1) - 0: do not throttle message speed\n";
-		std::cout << "\t\t1: throttle message speed\n\n";
+		std::cout << "\t\t1: throttle message speed\n";
 
 		std::cout << "\nDefault Parameters:\n";
 		std::cout << "\tserver_IP - " << serverIp << "\n";
@@ -78,12 +81,12 @@ int main(int argc, char **argv)
 	double readerTotalTime = 0.0;
 
 	for (int i = 0; i < posterCount; i++)
-		posterFutures.push_back(posterPool.enqueue(postRequest, serverIp, i, timeDurationSecs, throttle));
+		posterFutures.push_back(posterPool.enqueue(postRequest, serverIp, i, timeDurationSecs, throttle, posterCount));
 
-	this_thread::sleep_for(chrono::milliseconds(10));
+	this_thread::sleep_for(chrono::milliseconds(10)); // Wait for posters to begin posting
 
 	for (int i = 0; i < readerCount; i++)
-		readerFutures.push_back(readerPool.enqueue(readRequest, serverIp, i, timeDurationSecs, throttle));
+		readerFutures.push_back(readerPool.enqueue(readRequest, serverIp, i, timeDurationSecs, throttle, posterCount));
 
 	for (int i = 0; i < posterFutures.size(); i++)
 		posterFutures[i].wait();
@@ -91,29 +94,33 @@ int main(int argc, char **argv)
 	for (int i = 0; i < readerFutures.size(); i++)
 		readerFutures[i].wait();
 
+	cout << "\nTest complete!\n\nResults:\n";
+
 	for (int i = 0; i < posterThreadMap.size(); i++)
 	{
 		double threadRunTime = get<0>(posterThreadMap[i]);
 		double posterRequestsPerSecond = get<1>(posterThreadMap[i]);
+		int threadPostCount = get<2>(posterThreadMap[i]);
 		posterTotalTime += threadRunTime;
-		cout << "\nPoster thread " << i << " (ran for " << threadRunTime << "s) - Average post requests per second: " << posterRequestsPerSecond << "\n";
+		cout << "Poster thread " << i << " (ran for " << threadRunTime << "s) - Average post requests per second: " << posterRequestsPerSecond << " (Total = " << threadPostCount << ")\n";
 	}
+
+	cout << "\n\tTotal poster runtime: " << posterTotalTime << "s" << "\n";
+	cout << "\tTotal post requests: " << postRequests << "\n";
+	cout << "\tAverage post requests per second per thread: " << postRequests / posterTotalTime << "\n\n";
 
 	for (int i = 0; i < readerThreadMap.size(); i++)
 	{
 		double threadRunTime = get<0>(readerThreadMap[i]);
-		double readerRequestsPerSecond = get<1>(posterThreadMap[i]);
+		double readerRequestsPerSecond = get<1>(readerThreadMap[i]);
+		int threadReadCount = get<2>(readerThreadMap[i]);
 		readerTotalTime += threadRunTime;
-		cout << "\nReader thread " << i << " (ran for  " << threadRunTime << "s) - Average read requests per second: " << readerRequestsPerSecond << "\n";
+		cout << "Reader thread " << i << " (ran for  " << threadRunTime << "s) - Average read requests per second: " << readerRequestsPerSecond << " (Total = " << threadReadCount << ")\n";
 	}
 
-	cout << "\nTotal poster runtime: " << posterTotalTime << "s" << "\n";
-	cout << "Total post requests: " << postRequests << "\n";
-	cout << "Average post requests per second per thread: " << postRequests / posterTotalTime << "\n";
-
-	cout << "\nTotal reader runtimeL " << readerTotalTime << "s" << "\n";
-	cout << "Total read requests: " << readRequests << "\n";
-	cout << "Average read requests per second per thread: " << readRequests / readerTotalTime << "\n";
+	cout << "\n\tTotal reader runtime: " << readerTotalTime << "s" << "\n";
+	cout << "\tTotal read requests: " << readRequests << "\n";
+	cout << "\tAverage read requests per second per thread: " << readRequests / readerTotalTime << "\n";
 	
 	cout << "\nDo you want to verify all the responses? (Warning: This can take a while)\n";
 	system("pause");
@@ -122,7 +129,7 @@ int main(int argc, char **argv)
 	int invalidReadResponses = verifier->validateReadResponses();
 	
 	cout << "\n" << invalidPostResponses << " / " << postRequests << " invalid posts\n";
-	cout << "\n" << invalidReadResponses << " / " << readRequests << " invalid reads\n";
+	cout << invalidReadResponses << " / " << readRequests << " invalid reads\n";
 
 	if (invalidReadResponses == 0 && invalidPostResponses == 0)
 		cout << "\nSUCCESS: no invalid responses found\n\n";
@@ -130,29 +137,28 @@ int main(int argc, char **argv)
 		cout << "\nFAILED: some invalid responses were found\n\n";
 	
 	delete db;
+	delete verifier;
 
 	system("pause");
 	return 0;
 }
 
-void postRequest(string serverIp, int threadIndex, double timeDurationSecs, bool throttle)
+void postRequest(string serverIp, int threadIndex, double timeDurationSecs, bool throttle, int posterCount)
 {
-	const uint64_t rate = 1000;
-	const uint64_t burstSize = 1;
-	RequestGenerator* requestGenerator = new RequestGenerator(threadIndex);
-	TokenBucket* rateLimiter = new TokenBucket(rate, burstSize); // not making exactly 1000 calls
+	token_bucket::Limiter* rateLimiter = new token_bucket::Limiter(THROTTLE_RATE, THROTTLE_BURST);
+	RequestGenerator* requestGenerator = new RequestGenerator(threadIndex, posterCount);
 	TCPClient client(serverIp, DEFAULT_PORT);
 	client.OpenConnection();
 
 	unsigned int threadPostCount = 0;
 	double timeSpan;
+
 	chrono::high_resolution_clock::time_point endTime;
 	chrono::high_resolution_clock::time_point startTime = chrono::high_resolution_clock::now();
 	
 	do 
 	{
-		bool canConsume = rateLimiter->consume(burstSize);
-		if (!throttle || canConsume)
+		if (!throttle || rateLimiter->wait(THROTTLE_N, chrono::nanoseconds(0)))
 		{
 			string request = requestGenerator->generateWriteRequest();
 			string response = client.send(request);
@@ -165,7 +171,7 @@ void postRequest(string serverIp, int threadIndex, double timeDurationSecs, bool
 
 	double totalRunTime = (endTime - startTime).count();
 	double posterRequestsPerSecond = threadPostCount / timeSpan;
-	tuple<double, double> returnValues = make_tuple(timeSpan, posterRequestsPerSecond);
+	tuple<double, double, int> returnValues = make_tuple(timeSpan, posterRequestsPerSecond, threadPostCount);
 
 	mLock.lock();
 	postRequests += threadPostCount;
@@ -177,12 +183,10 @@ void postRequest(string serverIp, int threadIndex, double timeDurationSecs, bool
 	delete rateLimiter;
 }
 
-void readRequest(string serverIp, int threadIndex, double timeDurationSecs, bool throttle)
+void readRequest(string serverIp, int threadIndex, double timeDurationSecs, bool throttle, int posterCount)
 {
-	const uint64_t rate = 1000;
-	const uint64_t burstSize = 1;
-	RequestGenerator* requestGenerator = new RequestGenerator(threadIndex);
-	TokenBucket* rateLimiter = new TokenBucket(rate, burstSize);
+	token_bucket::Limiter* rateLimiter = new token_bucket::Limiter(THROTTLE_RATE, THROTTLE_BURST);
+	RequestGenerator* requestGenerator = new RequestGenerator(threadIndex, posterCount);
 	TCPClient client(serverIp, DEFAULT_PORT);
 	client.OpenConnection();
 
@@ -193,8 +197,7 @@ void readRequest(string serverIp, int threadIndex, double timeDurationSecs, bool
 
 	do
 	{
-		bool canConsume = rateLimiter->consume(burstSize);
-		if (!throttle || canConsume)
+		if (!throttle || rateLimiter->wait(THROTTLE_N, chrono::nanoseconds(0)))
 		{
 			string request = requestGenerator->generateReadRequest();
 			string response = client.send(request);
@@ -207,7 +210,7 @@ void readRequest(string serverIp, int threadIndex, double timeDurationSecs, bool
 
 	double totalRunTime = (endTime - startTime).count();
 	double posterRequestsPerSecond = threadReadCount / timeSpan;
-	tuple<double, double> returnValues = make_tuple(timeSpan, posterRequestsPerSecond);
+	tuple<double, double, int> returnValues = make_tuple(timeSpan, posterRequestsPerSecond, threadReadCount);
 
 	mLock.lock();
 	readRequests += threadReadCount;
@@ -216,4 +219,5 @@ void readRequest(string serverIp, int threadIndex, double timeDurationSecs, bool
 
 	client.CloseConnection();
 	delete requestGenerator;
+	delete rateLimiter;
 }

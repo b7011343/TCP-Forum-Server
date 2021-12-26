@@ -53,7 +53,7 @@
     <ClInclude Include="RequestParser.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TokenBucket.h">
+    <ClInclude Include="Limiter.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

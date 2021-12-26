@@ -1,6 +1,6 @@
 #include "RequestGenerator.h"
 
-RequestGenerator::RequestGenerator(int threadIndex)
+RequestGenerator::RequestGenerator(int threadIndex, int posterCount)
 {
 	for (int i = 0; i < 10; i++)
 	{
@@ -12,7 +12,7 @@ RequestGenerator::RequestGenerator(int threadIndex)
 	for (int i = 0; i < 10; i++)
 	{
 		stringstream stringStream;
-		stringStream << "READ@Topic" << threadIndex << "#0";
+		stringStream << "READ@Topic" << threadIndex % posterCount << "#" << i;
 		readRequests.push_back(stringStream.str());
 	}
 
