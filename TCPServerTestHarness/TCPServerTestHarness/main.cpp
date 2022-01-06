@@ -121,6 +121,12 @@ int main(int argc, char **argv)
 	cout << "\n\tTotal reader runtime: " << readerTotalTime << "s" << "\n";
 	cout << "\tTotal read requests: " << readRequests << "\n";
 	cout << "\tAverage read requests per second per thread: " << readRequests / readerTotalTime << "\n";
+
+	// Terminate the server
+	TCPClient client(serverIp, DEFAULT_PORT);
+	client.OpenConnection();
+	string response = client.send("EXIT");
+	client.CloseConnection();
 	
 	cout << "\nDo you want to verify all the responses? (Warning: This can take a while)\n";
 	system("pause");
