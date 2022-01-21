@@ -19,6 +19,7 @@
 #define THROTTLE_RATE 1000
 #define THROTTLE_BURST 100
 #define THROTTLE_N 1
+#define LOG_FILE_NAME "test-harness-results.csv"
 
 void readRequest(string serverIp, unsigned int threadIndex, double timeDurationSecs, bool throttle, unsigned int posterCount, bool validate);
 void postRequest(string serverIp, unsigned int threadIndex, double timeDurationSecs, bool throttle, unsigned int posterCount, bool validate);
@@ -45,25 +46,25 @@ int main(int argc, char **argv)
 
 	// Validate the parameters
 	if (argc != 6 && argc != 7) {
-		std::cout << "\nUsage (required parameters): server_IP number_of_poster_threads number_of_reader_threads time_duration throttle(0|1) validate(0|1)\n\n";
-		std::cout << "server_IP - IP of the server\n";
-		std::cout << "number_of_poster_threads - number of threads performing POST operations\n";
-		std::cout << "number_of_reader_threads - number of threads performing READ operations\n";
-		std::cout << "time_duration - duration of test execution in seconds\n";
-		std::cout << "throttle(0|1) - 0: do not throttle message speed\n";
-		std::cout << "\t\t1: throttle message speed\n";
-		std::cout << "validate(0|1) - 0: do not validate responses\n";
-		std::cout << "\t\t1: do validate responses\n";
+		cout << "\nUsage (required parameters): server_IP number_of_poster_threads number_of_reader_threads time_duration throttle(0|1) validate(0|1)\n\n";
+		cout << "server_IP - IP of the server\n";
+		cout << "number_of_poster_threads - number of threads performing POST operations\n";
+		cout << "number_of_reader_threads - number of threads performing READ operations\n";
+		cout << "time_duration - duration of test execution in seconds\n";
+		cout << "throttle(0|1) - 0: do not throttle message speed\n";
+		cout << "\t\t1: throttle message speed\n";
+		cout << "validate(0|1) - 0: do not validate responses\n";
+		cout << "\t\t1: do validate responses\n";
 
-		std::cout << "\nDefault Parameters:\n";
-		std::cout << "\tserver_IP - " << serverIp << "\n";
-		std::cout << "\tnumber_of_poster_threads - " << posterCount << "\n";
-		std::cout << "\tnumber_of_reader_threads - " << readerCount << "\n";
-		std::cout << "\ttime_duration - " << timeDurationSecs << "s\n";
-		std::cout << "\tthrottle - " << (throttle ? "true" : "false") << "\n";
-		std::cout << "\tvalidate - " << (validate ? "true" : "false") << "\n\n";
+		cout << "\nDefault Parameters:\n";
+		cout << "\tserver_IP - " << serverIp << "\n";
+		cout << "\tnumber_of_poster_threads - " << posterCount << "\n";
+		cout << "\tnumber_of_reader_threads - " << readerCount << "\n";
+		cout << "\ttime_duration - " << timeDurationSecs << "s\n";
+		cout << "\tthrottle - " << (throttle ? "true" : "false") << "\n";
+		cout << "\tvalidate - " << (validate ? "true" : "false") << "\n\n";
 
-		std::cout << "Enter dev mode using default paramaters?\n";
+		cout << "Enter dev mode using default paramaters?\n";
 		system("pause");
 	}
 	else
@@ -74,9 +75,7 @@ int main(int argc, char **argv)
 		timeDurationSecs = stoi(argv[4]);
 		throttle = stoi(argv[5]);
 		if (argc == 7)
-		{
 			validate = stoi(argv[6]);
-		}
 		cout << serverIp << " " << posterCount << " " << readerCount << " " << timeDurationSecs << " " << (bool)throttle << " " << (bool)validate;
 	}
 
@@ -132,14 +131,21 @@ int main(int argc, char **argv)
 	cout << "\tTotal read requests: " << readRequests << "\n";
 	cout << "\tAverage read requests per second per thread: " << readRequests / readerTotalTime << "\n";
 
+	// Check if log file exists
+	ifstream fileCheck(LOG_FILE_NAME);
+	bool fileExists = fileCheck.good();
 	ofstream resultsFile;
-	resultsFile.open("test-harness-results.csv", ios_base::app);
+	resultsFile.open(LOG_FILE_NAME, ios_base::app);
+	if (!fileExists)
+		resultsFile << "Date/Time, Thread Type, Thread Count, Total Request Count, Total Duration (s), Average Requests Per Second" << endl;
+
+	// Write results to log file
 	chrono::system_clock::time_point p = chrono::system_clock::now();
 	time_t t = chrono::system_clock::to_time_t(p);
 	char strCurrentDateTime[26];
 	ctime_s(strCurrentDateTime, sizeof strCurrentDateTime, &t);
-	resultsFile << strCurrentDateTime << "poster," << posterCount << "," << postRequests << "," << posterTotalTime << "," << (postRequests / posterTotalTime) << endl;
-	resultsFile << "reader," << readerCount << "," << readRequests << "," << readerTotalTime << "," << (readRequests / readerTotalTime) << endl;
+	resultsFile << strCurrentDateTime << ",Poster," << posterCount << "," << postRequests << "," << posterTotalTime << "," << (postRequests / posterTotalTime) << endl;
+	resultsFile << ",Reader," << readerCount << "," << readRequests << "," << readerTotalTime << "," << (readRequests / readerTotalTime) << endl;
 	resultsFile.close();
 
 	// Terminate the server
@@ -192,9 +198,7 @@ void postRequest(string serverIp, unsigned int threadIndex, double timeDurationS
 			string request = requestGenerator->generateWriteRequest();
 			string response = client.send(request);
 			if (validate)
-			{
 				db->addPosterValue(request, response);
-			}
 			threadPostCount++;
 		}
 		endTime = chrono::high_resolution_clock::now();
@@ -234,9 +238,7 @@ void readRequest(string serverIp, unsigned int threadIndex, double timeDurationS
 			string request = requestGenerator->generateReadRequest();
 			string response = client.send(request);
 			if (validate)
-			{
 				db->addReaderValue(request, response);
-			}
 			threadReadCount++;
 		}
 		endTime = chrono::high_resolution_clock::now();
