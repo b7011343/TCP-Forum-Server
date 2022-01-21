@@ -4,7 +4,7 @@
 1. Compile TCPServerMultithreaded.exe
 2. Compile TCPServerTestHarness.exe
 3. Navigate to TCPServerMultithreaded.exe and run "./TCPServerMultithreaded.exe" in the terminal
-4. Navigate to TCPServerTestHarness.exe and run "./TCPServerTestHarness ip_address poster_count reader_count duration_secs throttle validate" in the terminal
+4. Navigate to TCPServerTestHarness.exe and run "./TCPServerTestHarness.exe ip_address poster_count reader_count duration_secs throttle validate" in the terminal
   - ***ip_address:*** the server's IP
   - ***poster_count:*** the number of poster threads you want to create
   - ***reader_count:*** the number of reader threads you want to create
