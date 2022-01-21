@@ -6,6 +6,7 @@
 #include <mutex>
 #include <tuple>
 #include <map>
+#include <fstream>
 
 #include "TCPClient.h"
 #include "ThreadPool.h"
@@ -64,10 +65,11 @@ int main(int argc, char **argv)
 	else
 	{
 		serverIp = argv[1];
-		posterCount = (int)argv[2];
-		readerCount = (int)argv[3];
-		timeDurationSecs = (int)argv[4];
-		throttle = (int)argv[5];
+		posterCount = stoi(argv[2]);
+		readerCount = stoi(argv[3]);
+		timeDurationSecs = stoi(argv[4]);
+		throttle = stoi(argv[5]);
+		cout << serverIp << " " << posterCount << " " << readerCount << " " << timeDurationSecs << " " << throttle;
 	}
 
 	cout << "\nStarting throughput test...\n";
@@ -121,6 +123,16 @@ int main(int argc, char **argv)
 	cout << "\n\tTotal reader runtime: " << readerTotalTime << "s" << "\n";
 	cout << "\tTotal read requests: " << readRequests << "\n";
 	cout << "\tAverage read requests per second per thread: " << readRequests / readerTotalTime << "\n";
+
+	ofstream resultsFile;
+	resultsFile.open("../../test-harness-results.csv", ios_base::app);
+	chrono::system_clock::time_point p = chrono::system_clock::now();
+	time_t t = chrono::system_clock::to_time_t(p);
+	char str[26];
+	ctime_s(str, sizeof str, &t);
+	resultsFile << str << "poster," << posterCount << "," << postRequests << "," << posterTotalTime << "," << (postRequests / posterTotalTime) << endl;
+	resultsFile << "reader," << readerCount << "," << readRequests << "," << readerTotalTime << "," << (readRequests / readerTotalTime) << endl;
+	resultsFile.close();
 
 	// Terminate the server
 	TCPClient client(serverIp, DEFAULT_PORT);
