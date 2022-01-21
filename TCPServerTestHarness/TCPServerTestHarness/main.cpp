@@ -20,8 +20,8 @@
 #define THROTTLE_BURST 100
 #define THROTTLE_N 1
 
-void readRequest(string serverIp, unsigned int threadIndex, double timeDurationSecs, bool throttle, unsigned int posterCount);
-void postRequest(string serverIp, unsigned int threadIndex, double timeDurationSecs, bool throttle, unsigned int readerCount);
+void readRequest(string serverIp, unsigned int threadIndex, double timeDurationSecs, bool throttle, unsigned int posterCount, bool validate);
+void postRequest(string serverIp, unsigned int threadIndex, double timeDurationSecs, bool throttle, unsigned int posterCount, bool validate);
 
 unsigned int readRequests = 0;
 unsigned int postRequests = 0;
@@ -36,28 +36,32 @@ ResponseVerifier* verifier = new ResponseVerifier(db);
 int main(int argc, char **argv)
 {
 	// Default parameters
+	string serverIp = "127.0.0.1";
 	unsigned int posterCount = 5;
 	unsigned int readerCount = 5;
 	double timeDurationSecs = 10;
 	bool throttle = false;
-	string serverIp = "127.0.0.1";
+	bool validate = false;
 
 	// Validate the parameters
-	if (argc != 6) {
-		std::cout << "\nUsage (required parameters): server_IP number_of_poster_threads number_of_reader_threads time_duration throttle(0|1)\n\n";
+	if (argc != 6 && argc != 7) {
+		std::cout << "\nUsage (required parameters): server_IP number_of_poster_threads number_of_reader_threads time_duration throttle(0|1) validate(0|1)\n\n";
 		std::cout << "server_IP - IP of the server\n";
 		std::cout << "number_of_poster_threads - number of threads performing POST operations\n";
 		std::cout << "number_of_reader_threads - number of threads performing READ operations\n";
 		std::cout << "time_duration - duration of test execution in seconds\n";
 		std::cout << "throttle(0|1) - 0: do not throttle message speed\n";
 		std::cout << "\t\t1: throttle message speed\n";
+		std::cout << "validate(0|1) - 0: do not validate responses\n";
+		std::cout << "\t\t1: do validate responses\n";
 
 		std::cout << "\nDefault Parameters:\n";
 		std::cout << "\tserver_IP - " << serverIp << "\n";
 		std::cout << "\tnumber_of_poster_threads - " << posterCount << "\n";
 		std::cout << "\tnumber_of_reader_threads - " << readerCount << "\n";
 		std::cout << "\ttime_duration - " << timeDurationSecs << "s\n";
-		std::cout << "\tthrottle - " << (throttle ? "true" : "false") << "\n\n";
+		std::cout << "\tthrottle - " << (throttle ? "true" : "false") << "\n";
+		std::cout << "\tvalidate - " << (validate ? "true" : "false") << "\n\n";
 
 		std::cout << "Enter dev mode using default paramaters?\n";
 		system("pause");
@@ -69,7 +73,11 @@ int main(int argc, char **argv)
 		readerCount = stoi(argv[3]);
 		timeDurationSecs = stoi(argv[4]);
 		throttle = stoi(argv[5]);
-		cout << serverIp << " " << posterCount << " " << readerCount << " " << timeDurationSecs << " " << throttle;
+		if (argc == 7)
+		{
+			validate = stoi(argv[6]);
+		}
+		cout << serverIp << " " << posterCount << " " << readerCount << " " << timeDurationSecs << " " << (bool)throttle << " " << (bool)validate;
 	}
 
 	cout << "\nStarting throughput test...\n";
@@ -83,12 +91,12 @@ int main(int argc, char **argv)
 	double readerTotalTime = 0.0;
 
 	for (unsigned int i = 0; i < posterCount; i++)
-		posterFutures.push_back(posterPool.enqueue(postRequest, serverIp, i, timeDurationSecs, throttle, posterCount));
+		posterFutures.push_back(posterPool.enqueue(postRequest, serverIp, i, timeDurationSecs, throttle, posterCount, validate));
 
-	this_thread::sleep_for(chrono::milliseconds(10)); // Wait for posters to begin posting
+	this_thread::sleep_for(chrono::milliseconds(15)); // Wait for posters to begin posting
 
 	for (unsigned int i = 0; i < readerCount; i++)
-		readerFutures.push_back(readerPool.enqueue(readRequest, serverIp, i, timeDurationSecs, throttle, posterCount));
+		readerFutures.push_back(readerPool.enqueue(readRequest, serverIp, i, timeDurationSecs, throttle, posterCount, validate));
 
 	for (unsigned int i = 0; i < posterFutures.size(); i++)
 		posterFutures[i].wait();
@@ -111,7 +119,7 @@ int main(int argc, char **argv)
 	cout << "\tTotal post requests: " << postRequests << "\n";
 	cout << "\tAverage post requests per second per thread: " << postRequests / posterTotalTime << "\n\n";
 
-	for (int i = 0; i < readerThreadMap.size(); i++)
+	for (unsigned int i = 0; i < readerThreadMap.size(); i++)
 	{
 		double threadRunTime = get<0>(readerThreadMap[i]);
 		double readerRequestsPerSecond = get<1>(readerThreadMap[i]);
@@ -125,12 +133,12 @@ int main(int argc, char **argv)
 	cout << "\tAverage read requests per second per thread: " << readRequests / readerTotalTime << "\n";
 
 	ofstream resultsFile;
-	resultsFile.open("../../test-harness-results.csv", ios_base::app);
+	resultsFile.open("test-harness-results.csv", ios_base::app);
 	chrono::system_clock::time_point p = chrono::system_clock::now();
 	time_t t = chrono::system_clock::to_time_t(p);
-	char str[26];
-	ctime_s(str, sizeof str, &t);
-	resultsFile << str << "poster," << posterCount << "," << postRequests << "," << posterTotalTime << "," << (postRequests / posterTotalTime) << endl;
+	char strCurrentDateTime[26];
+	ctime_s(strCurrentDateTime, sizeof strCurrentDateTime, &t);
+	resultsFile << strCurrentDateTime << "poster," << posterCount << "," << postRequests << "," << posterTotalTime << "," << (postRequests / posterTotalTime) << endl;
 	resultsFile << "reader," << readerCount << "," << readRequests << "," << readerTotalTime << "," << (readRequests / readerTotalTime) << endl;
 	resultsFile.close();
 
@@ -140,19 +148,22 @@ int main(int argc, char **argv)
 	string response = client.send("EXIT");
 	client.CloseConnection();
 	
-	cout << "\nDo you want to verify all the responses? (Warning: This can take a while)\n";
-	system("pause");
+	if (validate)
+	{
+		cout << "\nComplete validations?\n";
+		system("pause");
 
-	unsigned int invalidPostResponses = verifier->validatePostResponses();
-	unsigned int invalidReadResponses = verifier->validateReadResponses();
+		unsigned int invalidPostResponses = verifier->validatePostResponses();
+		unsigned int invalidReadResponses = verifier->validateReadResponses();
 	
-	cout << "\n" << invalidPostResponses << " / " << postRequests << " invalid posts\n";
-	cout << invalidReadResponses << " / " << readRequests << " invalid reads\n";
+		cout << "\n" << invalidPostResponses << " / " << postRequests << " invalid posts\n";
+		cout << invalidReadResponses << " / " << readRequests << " invalid reads\n";
 
-	if (invalidReadResponses == 0 && invalidPostResponses == 0)
-		cout << "\nSUCCESS: no invalid responses found\n\n";
-	else
-		cout << "\nFAILED: some invalid responses were found\n\n";
+		if (invalidReadResponses == 0 && invalidPostResponses == 0)
+			cout << "\nSUCCESS: no invalid responses found\n\n";
+		else
+			cout << "\nFAILED: some invalid responses were found\n\n";
+	}
 	
 	delete db;
 	delete verifier;
@@ -161,7 +172,7 @@ int main(int argc, char **argv)
 	return 0;
 }
 
-void postRequest(string serverIp, unsigned int threadIndex, double timeDurationSecs, bool throttle, unsigned int posterCount)
+void postRequest(string serverIp, unsigned int threadIndex, double timeDurationSecs, bool throttle, unsigned int posterCount, bool validate)
 {
 	token_bucket::Limiter* rateLimiter = new token_bucket::Limiter(THROTTLE_RATE, THROTTLE_BURST);
 	RequestGenerator* requestGenerator = new RequestGenerator(threadIndex, posterCount);
@@ -180,7 +191,10 @@ void postRequest(string serverIp, unsigned int threadIndex, double timeDurationS
 		{
 			string request = requestGenerator->generateWriteRequest();
 			string response = client.send(request);
-			db->addPosterValue(request, response);
+			if (validate)
+			{
+				db->addPosterValue(request, response);
+			}
 			threadPostCount++;
 		}
 		endTime = chrono::high_resolution_clock::now();
@@ -201,10 +215,10 @@ void postRequest(string serverIp, unsigned int threadIndex, double timeDurationS
 	delete rateLimiter;
 }
 
-void readRequest(string serverIp, unsigned int threadIndex, double timeDurationSecs, bool throttle, unsigned int readerCount)
+void readRequest(string serverIp, unsigned int threadIndex, double timeDurationSecs, bool throttle, unsigned int posterCount, bool validate)
 {
 	token_bucket::Limiter* rateLimiter = new token_bucket::Limiter(THROTTLE_RATE, THROTTLE_BURST);
-	RequestGenerator* requestGenerator = new RequestGenerator(threadIndex, readerCount);
+	RequestGenerator* requestGenerator = new RequestGenerator(threadIndex, posterCount);
 	TCPClient client(serverIp, DEFAULT_PORT);
 	client.OpenConnection();
 
@@ -219,7 +233,10 @@ void readRequest(string serverIp, unsigned int threadIndex, double timeDurationS
 		{
 			string request = requestGenerator->generateReadRequest();
 			string response = client.send(request);
-			db->addReaderValue(request, response);
+			if (validate)
+			{
+				db->addReaderValue(request, response);
+			}
 			threadReadCount++;
 		}
 		endTime = chrono::high_resolution_clock::now();
