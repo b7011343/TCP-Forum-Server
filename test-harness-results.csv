@@ -1,0 +1,7 @@
+thread type,thread count,total requests,total duration,average requests per second
+Fri Jan 21 13:00:43 2022
+poster,5,300676,50.0008,6013.43
+reader,5,296535,50.0264,5927.57
+Fri Jan 21 13:02:49 2022
+poster,5,316067,50.0008,6321.24
+reader,5,287035,50.0003,5740.67

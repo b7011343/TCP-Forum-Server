@@ -12,7 +12,7 @@ RequestGenerator::RequestGenerator(int threadIndex, int posterCount)
 	for (int i = 0; i < 10; i++)
 	{
 		stringstream stringStream;
-		stringStream << "READ@Topic" << threadIndex % posterCount << "#" << i;
+		stringStream << "READ@Topic" << threadIndex % posterCount << "#" << i % 1;
 		readRequests.push_back(stringStream.str());
 	}
 
