@@ -6,6 +6,8 @@
 - ***TCPServerMultithreaded (folder)***: TCP server implementation (visual studio project)
 - ***TCPServerTestHarness (folder)***: Test harness implementation (visual studio project)
 - ***README.md***: Readme file
+- ***test-harness-results.csv***: Raw results from throughput tests
+- ***Graphs.xlsx***: Excel file containing average graphs
 
 ### How to Run Server and Test Harness:
 1. Compile TCPServerMultithreaded.exe in visual studio
