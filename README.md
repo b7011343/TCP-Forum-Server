@@ -1,8 +1,15 @@
 # TCP-Forum-Server
 
-### How to run:
-1. Compile TCPServerMultithreaded.exe
-2. Compile TCPServerTestHarness.exe
+### Archive Contents:
+- ***Report.pdf***: Assignment evaluation report
+- ***.gitignore***: Git ignore file
+- ***TCPServerMultithreaded (folder)***: TCP server implementation (visual studio project)
+- ***TCPServerTestHarness (folder)***: Test harness implementation (visual studio project)
+- ***README.md***: Readme file
+
+### How to Run Server and Test Harness:
+1. Compile TCPServerMultithreaded.exe in visual studio
+2. Compile TCPServerTestHarness.exe in visual studio
 3. Navigate to TCPServerMultithreaded.exe and run "./TCPServerMultithreaded.exe" in the terminal
 4. Navigate to TCPServerTestHarness.exe and run "./TCPServerTestHarness.exe ***ip_address poster_count reader_count duration_secs throttle validate***" in the terminal
   - ***ip_address:*** the server's IP
